@@ -1,0 +1,47 @@
+name: creposa
+description: FALE Archives — Gestion documentaire d'entreprise
+publish_to: 'none'
+version: 2.0.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  intl: ^0.19.0
+  google_fonts: ^6.2.1
+  file_picker: ^8.1.2
+  qr_flutter: ^4.1.0
+  uuid: ^4.5.1
+  shared_preferences: ^2.3.2
+  path_provider: ^2.1.4
+  pdf: ^3.11.1
+  printing: ^5.13.2
+  supabase_flutter: ^2.8.4
+  flutter_animate: ^4.5.2
+  fl_chart: ^1.2.0
+  mesh_gradient: ^1.3.8
+  photo_view: ^0.15.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.14.2
+
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/app_icon.png"
+  web:
+    generate: true
+    image_path: "assets/app_icon.png"
+    background_color: "#000000"
+    theme_color: "#000000"
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/app_icon.png
