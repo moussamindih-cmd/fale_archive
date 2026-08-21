@@ -71,18 +71,19 @@ class CandidatesState extends ChangeNotifier {
       }
       if (keyword != null && keyword.isNotEmpty) {
         final kw = keyword.toLowerCase();
-        final match = c.fullName.toLowerCase().contains(kw) ||
+        final match =
+            c.fullName.toLowerCase().contains(kw) ||
             c.email.toLowerCase().contains(kw) ||
             c.phone.contains(kw) ||
             c.targetPosition.toLowerCase().contains(kw) ||
             c.rhNotes.toLowerCase().contains(kw);
         if (!match) return false;
       }
-      if (fromDate != null && c.applicationDate.isBefore(fromDate)) return false;
+      if (fromDate != null && c.applicationDate.isBefore(fromDate))
+        return false;
       if (toDate != null && c.applicationDate.isAfter(toDate)) return false;
       return true;
-    }).toList()
-      ..sort((a, b) => b.applicationDate.compareTo(a.applicationDate));
+    }).toList()..sort((a, b) => b.applicationDate.compareTo(a.applicationDate));
   }
 
   // ─── CRUD ───────────────────────────────────────────────────────────────
@@ -118,8 +119,24 @@ class CandidatesState extends ChangeNotifier {
     // Mise à jour optimiste
     _candidates.insert(0, candidate);
     notifyListeners();
-    // Persistance Supabase
-    await SupabaseService.instance.insertCandidate(candidate);
+    // Upload des fichiers joints puis persistance Supabase
+    final uploaded = await Future.wait(
+      documents.map(
+        (f) => SupabaseService.instance.uploadDocument(
+          module: 'candidates',
+          entityId: candidate.id,
+          file: f,
+        ),
+      ),
+    );
+    final idx = _candidates.indexWhere((c) => c.id == candidate.id);
+    if (idx != -1) {
+      _candidates[idx] = _candidates[idx].copyWith(documents: uploaded);
+      notifyListeners();
+    }
+    await SupabaseService.instance.insertCandidate(
+      candidate.copyWith(documents: uploaded),
+    );
     await SupabaseService.instance.insertHistoryEntry(
       entry: candidate.history.first,
       candidateId: candidate.id,
@@ -157,6 +174,25 @@ class CandidatesState extends ChangeNotifier {
     );
     _candidates[idx] = updated;
     notifyListeners();
+    List<AttachedFile>? uploadedDocuments;
+    if (documents != null) {
+      uploadedDocuments = await Future.wait(
+        documents.map(
+          (f) => SupabaseService.instance.uploadDocument(
+            module: 'candidates',
+            entityId: id,
+            file: f,
+          ),
+        ),
+      );
+      final freshIdx = _candidates.indexWhere((c) => c.id == id);
+      if (freshIdx != -1) {
+        _candidates[freshIdx] = _candidates[freshIdx].copyWith(
+          documents: uploadedDocuments,
+        );
+        notifyListeners();
+      }
+    }
     await SupabaseService.instance.updateCandidate(
       id: id,
       fullName: fullName,
@@ -164,6 +200,7 @@ class CandidatesState extends ChangeNotifier {
       email: email,
       phone: phone,
       rhNotes: rhNotes,
+      documents: uploadedDocuments,
     );
     await SupabaseService.instance.insertHistoryEntry(
       entry: entry,
@@ -191,7 +228,10 @@ class CandidatesState extends ChangeNotifier {
       history: [...old.history, entry],
     );
     notifyListeners();
-    await SupabaseService.instance.updateCandidateStatus(id: id, status: newStatus);
+    await SupabaseService.instance.updateCandidateStatus(
+      id: id,
+      status: newStatus,
+    );
     await SupabaseService.instance.insertHistoryEntry(
       entry: entry,
       candidateId: id,

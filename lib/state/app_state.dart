@@ -64,8 +64,9 @@ class AppState extends ChangeNotifier {
     }
     if (_currentEmployee != null) {
       try {
-        _subscriptionInfo = await _supabase
-            .fetchSubscriptionInfo(_currentEmployee!.organizationId);
+        _subscriptionInfo = await _supabase.fetchSubscriptionInfo(
+          _currentEmployee!.organizationId,
+        );
       } catch (_) {
         // Fallback
       }
@@ -75,7 +76,8 @@ class AppState extends ChangeNotifier {
 
   // ─── Accounts store ───────────────────────────────────────────────────────
   List<Employee> _employees = [];
-  List<Employee> get employees => List.unmodifiable(_employees.where((e) => e.isActive));
+  List<Employee> get employees =>
+      List.unmodifiable(_employees.where((e) => e.isActive));
   List<Employee> get allEmployees => List.unmodifiable(_employees);
 
   // ─── Archives store ──────────────────────────────────────────────────────
@@ -113,19 +115,30 @@ class AppState extends ChangeNotifier {
   // ─── Getters dérivés ─────────────────────────────────────────────────
   List<DailyArchive> get todayArchives {
     final now = DateTime.now();
-    return _allArchives.where((a) =>
-      a.archiveDate.year == now.year &&
-      a.archiveDate.month == now.month &&
-      a.archiveDate.day == now.day
-    ).toList();
+    return _allArchives
+        .where(
+          (a) =>
+              a.archiveDate.year == now.year &&
+              a.archiveDate.month == now.month &&
+              a.archiveDate.day == now.day,
+        )
+        .toList();
   }
 
   List<DailyArchive> get thisWeekArchives {
     final now = DateTime.now();
     final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
-    return _allArchives.where((a) =>
-      a.archiveDate.isAfter(DateTime(startOfWeek.year, startOfWeek.month, startOfWeek.day).subtract(const Duration(seconds: 1)))
-    ).toList();
+    return _allArchives
+        .where(
+          (a) => a.archiveDate.isAfter(
+            DateTime(
+              startOfWeek.year,
+              startOfWeek.month,
+              startOfWeek.day,
+            ).subtract(const Duration(seconds: 1)),
+          ),
+        )
+        .toList();
   }
 
   List<DailyArchive> get myArchives {
@@ -139,22 +152,26 @@ class AppState extends ChangeNotifier {
   bool get hasSubmittedToday {
     if (_currentEmployee == null) return false;
     final now = DateTime.now();
-    return _allArchives.any((a) =>
-      a.employeeId == _currentEmployee!.id &&
-      a.archiveDate.year == now.year &&
-      a.archiveDate.month == now.month &&
-      a.archiveDate.day == now.day
+    return _allArchives.any(
+      (a) =>
+          a.employeeId == _currentEmployee!.id &&
+          a.archiveDate.year == now.year &&
+          a.archiveDate.month == now.month &&
+          a.archiveDate.day == now.day,
     );
   }
 
   /// Statistiques globales pour le dashboard Admin
   Map<String, int> get globalStats {
     final now = DateTime.now();
-    final today = _allArchives.where((a) =>
-      a.archiveDate.year == now.year &&
-      a.archiveDate.month == now.month &&
-      a.archiveDate.day == now.day
-    ).length;
+    final today = _allArchives
+        .where(
+          (a) =>
+              a.archiveDate.year == now.year &&
+              a.archiveDate.month == now.month &&
+              a.archiveDate.day == now.day,
+        )
+        .length;
     return {
       'totalEmployees': _employees.where((e) => e.isActive).length,
       'archivesToday': today,
@@ -169,10 +186,7 @@ class AppState extends ChangeNotifier {
   Future<String?> login(String email, String password) async {
     _isLoading = true;
     notifyListeners();
-    final error = await _supabase.signIn(
-      email: email,
-      password: password,
-    );
+    final error = await _supabase.signIn(email: email, password: password);
     if (error != null) {
       _isLoading = false;
       notifyListeners();
@@ -208,8 +222,10 @@ class AppState extends ChangeNotifier {
   }) async {
     if (fullName.trim().isEmpty) return 'Le nom complet est obligatoire.';
     if (email.trim().isEmpty || !email.contains('@')) return 'Email invalide.';
-    if (password.length < 6) return 'Le mot de passe doit avoir au moins 6 caractères.';
-    if (role == UserRole.employe && jobTitle.isEmpty) return 'Veuillez choisir votre poste.';
+    if (password.length < 6)
+      return 'Le mot de passe doit avoir au moins 6 caractères.';
+    if (role == UserRole.employe && jobTitle.isEmpty)
+      return 'Veuillez choisir votre poste.';
 
     _isLoading = true;
     notifyListeners();
@@ -234,7 +250,8 @@ class AppState extends ChangeNotifier {
       fullName: fullName,
       jobTitle: jobTitle,
       role: _currentEmployee == null ? UserRole.admin : role,
-      organizationId: _currentEmployee?.organizationId, // Passage de l'org courante
+      organizationId:
+          _currentEmployee?.organizationId, // Passage de l'org courante
     );
     if (error != null) {
       _isLoading = false;
@@ -265,12 +282,13 @@ class AppState extends ChangeNotifier {
   Future<String?> updateProfilePicture(Uint8List bytes, String ext) async {
     if (_currentEmployee == null) return 'Non connecté';
     try {
-      final url = await _supabase.uploadAvatar(_currentEmployee!.id, bytes, ext);
-      if (url == null) return 'Erreur lors de l\'upload';
-      await _supabase.updateEmployee(
-        id: _currentEmployee!.id,
-        avatarUrl: url,
+      final url = await _supabase.uploadAvatar(
+        _currentEmployee!.id,
+        bytes,
+        ext,
       );
+      if (url == null) return 'Erreur lors de l\'upload';
+      await _supabase.updateEmployee(id: _currentEmployee!.id, avatarUrl: url);
       _currentEmployee = _currentEmployee!.copyWith(avatarUrl: url);
       notifyListeners();
       return null;
@@ -333,8 +351,18 @@ class AppState extends ChangeNotifier {
     String physicalLocation = '',
   }) async {
     if (_currentEmployee == null) return 'Aucun utilisateur connecté.';
+    final archiveId = 'arc_${DateTime.now().millisecondsSinceEpoch}';
+    final uploadedFiles = await Future.wait(
+      files.map(
+        (f) => SupabaseService.instance.uploadDocument(
+          module: 'archives',
+          entityId: archiveId,
+          file: f,
+        ),
+      ),
+    );
     final archive = DailyArchive(
-      id: 'arc_${DateTime.now().millisecondsSinceEpoch}',
+      id: archiveId,
       employeeId: _currentEmployee!.id,
       employeeName: _currentEmployee!.fullName,
       jobTitle: _currentEmployee!.jobTitle,
@@ -343,7 +371,7 @@ class AppState extends ChangeNotifier {
       summary: summary,
       category: _currentEmployee!.archiveCategory,
       documentCount: files.isNotEmpty ? files.length : documentCount,
-      files: files,
+      files: uploadedFiles,
       physicalLocation: physicalLocation.trim(),
       submittedAt: DateTime.now(),
     );
@@ -445,7 +473,8 @@ class AppState extends ChangeNotifier {
     _logActivity(
       userName: actionUserName,
       action: 'ROLE_CHANGE',
-      details: 'Rôle de ${old.fullName} changé : "${old.role.label}" → "${newRole.label}".',
+      details:
+          'Rôle de ${old.fullName} changé : "${old.role.label}" → "${newRole.label}".',
     );
     notifyListeners();
   }
@@ -460,7 +489,10 @@ class AppState extends ChangeNotifier {
     final old = _employees[idx];
     final newActive = !old.isActive;
     _employees[idx] = old.copyWith(isActive: newActive);
-    await SupabaseService.instance.toggleEmployeeActive(id: id, isActive: newActive);
+    await SupabaseService.instance.toggleEmployeeActive(
+      id: id,
+      isActive: newActive,
+    );
     _logActivity(
       userName: actionUserName,
       action: old.isActive ? 'DELETE' : 'UPDATE',
@@ -480,7 +512,10 @@ class AppState extends ChangeNotifier {
     if (idx == -1) return;
     final name = _employees[idx].fullName;
     _employees[idx] = _employees[idx].copyWith(isActive: false);
-    await SupabaseService.instance.toggleEmployeeActive(id: id, isActive: false);
+    await SupabaseService.instance.toggleEmployeeActive(
+      id: id,
+      isActive: false,
+    );
     _logActivity(
       userName: actionUserName,
       action: 'DELETE',

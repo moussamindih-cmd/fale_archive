@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/employee.dart';
+import '../models/attached_file.dart';
 import '../models/daily_archive.dart';
 import '../models/candidate.dart';
 import '../models/logistics_item.dart';
@@ -15,6 +16,8 @@ class SupabaseService {
   static final SupabaseService instance = SupabaseService._();
 
   SupabaseClient get _client => Supabase.instance.client;
+
+  String? _cachedOrganizationId;
 
   // ─── Auth ────────────────────────────────────────────────────────────────
 
@@ -34,23 +37,23 @@ class SupabaseService {
       final res = await _client.auth.signUp(
         email: email,
         password: password,
-        data: {
-          'full_name': fullName,
-          'job_title': jobTitle,
-          'role': role.name,
-        },
+        data: {'full_name': fullName, 'job_title': jobTitle, 'role': role.name},
       );
 
       if (res.user == null) return 'Erreur lors de la création du compte.';
 
       String targetOrgId = organizationId ?? '';
-      
+
       // Si aucune organisation n'est fournie, c'est le premier admin : on crée l'organisation
       if (targetOrgId.isEmpty) {
-        final orgRes = await _client.from('organizations').insert({
-          'name': 'Organisation de $fullName',
-          'admin_id': res.user!.id,
-        }).select('id').single();
+        final orgRes = await _client
+            .from('organizations')
+            .insert({
+              'name': 'Organisation de $fullName',
+              'admin_id': res.user!.id,
+            })
+            .select('id')
+            .single();
         targetOrgId = orgRes['id'] as String;
       }
 
@@ -81,10 +84,7 @@ class SupabaseService {
     required String password,
   }) async {
     try {
-      await _client.auth.signInWithPassword(
-        email: email,
-        password: password,
-      );
+      await _client.auth.signInWithPassword(email: email, password: password);
       return null; // Succès
     } on AuthException catch (e) {
       return _translateAuthError(e.message);
@@ -95,7 +95,23 @@ class SupabaseService {
 
   /// Déconnexion
   Future<void> signOut() async {
+    _cachedOrganizationId = null;
     await _client.auth.signOut();
+  }
+
+  /// Organisation de l'utilisateur connecté (mise en cache pour éviter une
+  /// requête à chaque upload de document).
+  Future<String?> _currentOrganizationId() async {
+    if (_cachedOrganizationId != null) return _cachedOrganizationId;
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) return null;
+    final row = await _client
+        .from('employees')
+        .select('organization_id')
+        .eq('id', userId)
+        .maybeSingle();
+    _cachedOrganizationId = row?['organization_id'] as String?;
+    return _cachedOrganizationId;
   }
 
   /// Utilisateur Auth actuellement connecté
@@ -148,15 +164,55 @@ class SupabaseService {
   }
 
   /// Uploader une image de profil
-  Future<String?> uploadAvatar(String userId, Uint8List fileBytes, String extension) async {
+  Future<String?> uploadAvatar(
+    String userId,
+    Uint8List fileBytes,
+    String extension,
+  ) async {
     try {
-      final fileName = '$userId-${DateTime.now().millisecondsSinceEpoch}.$extension';
-      await _client.storage.from('avatars').uploadBinary(
+      final fileName =
+          '$userId-${DateTime.now().millisecondsSinceEpoch}.$extension';
+      await _client.storage
+          .from('avatars')
+          .uploadBinary(
             fileName,
             fileBytes,
             fileOptions: const FileOptions(upsert: true),
           );
       return _client.storage.from('avatars').getPublicUrl(fileName);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // ─── Documents joints (bucket privé, isolé par organisation) ──────────────
+
+  /// Uploader un fichier joint (candidat, document logistique, archive) et
+  /// retourner une copie du fichier avec `storagePath` renseigné.
+  Future<AttachedFile> uploadDocument({
+    required String module,
+    required String entityId,
+    required AttachedFile file,
+  }) async {
+    if (file.storagePath != null || file.bytes == null) return file;
+    final organizationId = await _currentOrganizationId();
+    if (organizationId == null) return file;
+    final path =
+        '$organizationId/$module/$entityId/${DateTime.now().millisecondsSinceEpoch}-${file.name}';
+    await _client.storage
+        .from('documents')
+        .uploadBinary(
+          path,
+          Uint8List.fromList(file.bytes!),
+          fileOptions: const FileOptions(upsert: true),
+        );
+    return file.copyWith(storagePath: path);
+  }
+
+  /// Télécharger les octets d'un fichier joint précédemment uploadé.
+  Future<Uint8List?> downloadDocument(String storagePath) async {
+    try {
+      return await _client.storage.from('documents').download(storagePath);
     } catch (e) {
       return null;
     }
@@ -224,6 +280,7 @@ class SupabaseService {
         'document_count': archive.documentCount,
         'physical_location': archive.physicalLocation,
         'submitted_at': archive.submittedAt.toIso8601String(),
+        'documents': archive.files.map((f) => f.toJson()).toList(),
       });
       return null;
     } catch (e) {
@@ -253,6 +310,7 @@ class SupabaseService {
         'status': candidate.status.name,
         'rh_notes': candidate.rhNotes,
         'is_deleted': false,
+        'documents': candidate.documents.map((f) => f.toJson()).toList(),
       });
       return null;
     } catch (e) {
@@ -267,6 +325,7 @@ class SupabaseService {
     String? email,
     String? phone,
     String? rhNotes,
+    List<AttachedFile>? documents,
   }) async {
     final updates = <String, dynamic>{};
     if (fullName != null) updates['full_name'] = fullName;
@@ -274,6 +333,9 @@ class SupabaseService {
     if (email != null) updates['email'] = email;
     if (phone != null) updates['phone'] = phone;
     if (rhNotes != null) updates['rh_notes'] = rhNotes;
+    if (documents != null) {
+      updates['documents'] = documents.map((f) => f.toJson()).toList();
+    }
     if (updates.isEmpty) return;
     await _client.from('candidates').update(updates).eq('id', id);
   }
@@ -289,10 +351,7 @@ class SupabaseService {
   }
 
   Future<void> softDeleteCandidate(String id) async {
-    await _client
-        .from('candidates')
-        .update({'is_deleted': true})
-        .eq('id', id);
+    await _client.from('candidates').update({'is_deleted': true}).eq('id', id);
   }
 
   // ─── Logistics ───────────────────────────────────────────────────────────
@@ -320,6 +379,7 @@ class SupabaseService {
         'validated_by_name': item.validatedByName,
         'notes': item.notes,
         'is_deleted': false,
+        'documents': item.files.map((f) => f.toJson()).toList(),
       });
       return null;
     } catch (e) {
@@ -335,6 +395,7 @@ class SupabaseService {
     String? supplier,
     DateTime? issueDate,
     String? notes,
+    List<AttachedFile>? files,
   }) async {
     final updates = <String, dynamic>{};
     if (documentType != null) updates['document_type'] = documentType.name;
@@ -343,6 +404,9 @@ class SupabaseService {
     if (supplier != null) updates['supplier'] = supplier;
     if (issueDate != null) updates['issue_date'] = issueDate.toIso8601String();
     if (notes != null) updates['notes'] = notes;
+    if (files != null) {
+      updates['documents'] = files.map((f) => f.toJson()).toList();
+    }
     if (updates.isEmpty) return;
     await _client.from('logistics_items').update(updates).eq('id', id);
   }
@@ -351,20 +415,20 @@ class SupabaseService {
     required String id,
     required String validatedByName,
   }) async {
-    await _client.from('logistics_items').update({
-      'status': 'valide',
-      'validated_by_name': validatedByName,
-    }).eq('id', id);
+    await _client
+        .from('logistics_items')
+        .update({'status': 'valide', 'validated_by_name': validatedByName})
+        .eq('id', id);
   }
 
   Future<void> rejectLogisticsItem({
     required String id,
     required String validatedByName,
   }) async {
-    await _client.from('logistics_items').update({
-      'status': 'rejete',
-      'validated_by_name': validatedByName,
-    }).eq('id', id);
+    await _client
+        .from('logistics_items')
+        .update({'status': 'rejete', 'validated_by_name': validatedByName})
+        .eq('id', id);
   }
 
   Future<void> softDeleteLogisticsItem(String id) async {
@@ -402,12 +466,14 @@ class SupabaseService {
         .order('timestamp', ascending: false)
         .limit(limit);
     return (data as List)
-        .map((m) => ActionHistoryEntry(
-              userName: m['user_name'] as String,
-              action: m['action'] as String,
-              timestamp: DateTime.parse(m['timestamp'] as String),
-              details: m['details'] as String? ?? '',
-            ))
+        .map(
+          (m) => ActionHistoryEntry(
+            userName: m['user_name'] as String,
+            action: m['action'] as String,
+            timestamp: DateTime.parse(m['timestamp'] as String),
+            details: m['details'] as String? ?? '',
+          ),
+        )
         .toList();
   }
 
@@ -420,21 +486,25 @@ class SupabaseService {
     final data = await _client
         .from('in_app_notifications')
         .select()
-        .or('target_user_id.eq.$userId,target_user_id.is.null,target_role.eq.$userRole')
+        .or(
+          'target_user_id.eq.$userId,target_user_id.is.null,target_role.eq.$userRole',
+        )
         .order('timestamp', ascending: false)
         .limit(50);
     return (data as List)
-        .map((m) => InAppNotification.fromJson({
-              'id': m['id'],
-              'title': m['title'],
-              'message': m['message'],
-              'type': m['type'],
-              'timestamp': m['timestamp'],
-              'isRead': m['is_read'],
-              'relatedEntityId': m['related_entity_id'],
-              'targetRole': m['target_role'],
-              'targetUserId': m['target_user_id'],
-            }))
+        .map(
+          (m) => InAppNotification.fromJson({
+            'id': m['id'],
+            'title': m['title'],
+            'message': m['message'],
+            'type': m['type'],
+            'timestamp': m['timestamp'],
+            'isRead': m['is_read'],
+            'relatedEntityId': m['related_entity_id'],
+            'targetRole': m['target_role'],
+            'targetUserId': m['target_user_id'],
+          }),
+        )
         .toList();
   }
 
@@ -468,9 +538,9 @@ class SupabaseService {
           .select('*, subscription_plans(*)')
           .eq('organization_id', organizationId)
           .order('created_at', ascending: false);
-      
+
       if (data.isEmpty) return const SubscriptionInfo(history: []);
-      
+
       final history = (data as List).map((m) {
         final planData = m['subscription_plans'] as Map<String, dynamic>? ?? {};
         m['plan_name'] = planData['name'];
@@ -478,11 +548,11 @@ class SupabaseService {
       }).toList();
 
       final active = history.where((t) => t.isActive).firstOrNull;
-      
+
       SubscriptionPlan? activePlan;
       if (active != null) {
-         final activeRow = data.firstWhere((m) => m['id'] == active.id);
-         activePlan = SubscriptionPlan.fromJson(activeRow['subscription_plans']);
+        final activeRow = data.firstWhere((m) => m['id'] == active.id);
+        activePlan = SubscriptionPlan.fromJson(activeRow['subscription_plans']);
       }
 
       return SubscriptionInfo(
@@ -525,6 +595,13 @@ class SupabaseService {
     );
   }
 
+  List<AttachedFile> _parseDocuments(dynamic raw) {
+    if (raw is! List) return const [];
+    return raw
+        .map((e) => AttachedFile.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
   DailyArchive _mapArchive(Map<String, dynamic> m) {
     return DailyArchive(
       id: m['id'] as String,
@@ -538,7 +615,10 @@ class SupabaseService {
       documentCount: m['document_count'] as int? ?? 0,
       physicalLocation: m['physical_location'] as String? ?? '',
       submittedAt: DateTime.parse(m['submitted_at'] as String),
-      deletedAt: m['deleted_at'] != null ? DateTime.parse(m['deleted_at'] as String) : null,
+      deletedAt: m['deleted_at'] != null
+          ? DateTime.parse(m['deleted_at'] as String)
+          : null,
+      files: _parseDocuments(m['documents']),
     );
   }
 
@@ -556,6 +636,7 @@ class SupabaseService {
       ),
       rhNotes: m['rh_notes'] as String? ?? '',
       isDeleted: m['is_deleted'] as bool? ?? false,
+      documents: _parseDocuments(m['documents']),
     );
   }
 
@@ -579,6 +660,7 @@ class SupabaseService {
       validatedByName: m['validated_by_name'] as String? ?? '',
       notes: m['notes'] as String? ?? '',
       isDeleted: m['is_deleted'] as bool? ?? false,
+      files: _parseDocuments(m['documents']),
     );
   }
 
@@ -604,4 +686,3 @@ class SupabaseService {
     return message;
   }
 }
-

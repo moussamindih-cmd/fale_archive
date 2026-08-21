@@ -26,6 +26,84 @@ class DashboardScreen extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Navigation Bar: Retour + Déconnexion
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // Bouton Retour
+              AppButton(
+                label: 'Retour',
+                icon: Icons.arrow_back_rounded,
+                variant: AppButtonVariant.outlined,
+                onPressed: () {
+                  if (Navigator.of(context).canPop()) {
+                    Navigator.of(context).pop();
+                  }
+                },
+              ),
+              // Bouton Déconnexion
+              AppButton(
+                label: 'Déconnexion',
+                icon: Icons.logout_rounded,
+                variant: AppButtonVariant.danger,
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      title: const Row(
+                        children: [
+                          Icon(Icons.logout_rounded, color: AppColors.accentCrimson),
+                          SizedBox(width: 10),
+                          Text('Déconnexion'),
+                        ],
+                      ),
+                      content: const Text(
+                        'Êtes-vous sûr de vouloir vous déconnecter ?',
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.of(ctx).pop(),
+                          child: Text(
+                            'Annuler',
+                            style: TextStyle(
+                              color: isDark
+                                  ? AppColors.textSecondaryDark
+                                  : AppColors.textSecondaryLight,
+                            ),
+                          ),
+                        ),
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.accentCrimson,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          icon: const Icon(Icons.logout_rounded, size: 18),
+                          label: const Text('Se déconnecter'),
+                          onPressed: () {
+                            Navigator.of(ctx).pop(); // Ferme le dialog
+                            // Retour à l'écran de login en supprimant toute la pile
+                            Navigator.of(context).pushNamedAndRemoveUntil(
+                              AppRoutes.login,
+                              (route) => false,
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+
           // Banner Welcome & Quick Action Bar
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,

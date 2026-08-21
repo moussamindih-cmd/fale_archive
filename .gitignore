@@ -43,3 +43,6 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Local admin/ops scripts — may contain Supabase service_role keys or other secrets
+/scripts/

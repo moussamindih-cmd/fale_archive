@@ -97,7 +97,28 @@ class _HomeScreenState extends State<HomeScreen> {
 
         final appBar = AppBar(
           elevation: 0,
-          titleSpacing: 16,
+          titleSpacing: 0,
+          leading: Container(
+            margin: const EdgeInsets.only(left: 8),
+            decoration: BoxDecoration(
+              color: (isDark ? Colors.white : kTextPrimary).withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: IconButton(
+              tooltip: 'Retour',
+              icon: Icon(
+                Icons.arrow_back_rounded,
+                color: isDark ? kDarkTextPrimary : kTextPrimary,
+                size: 22,
+              ),
+              onPressed: () {
+                if (Navigator.of(context).canPop()) {
+                  Navigator.of(context).pop();
+                }
+              },
+            ),
+          ),
+
           title: Row(
             children: [
               _buildAvatar(emp),
@@ -218,8 +239,93 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               onPressed: () => _themeState.toggleTheme(),
             ),
+            // Déconnexion
             const SizedBox(width: 4),
+            Container(
+              margin: const EdgeInsets.only(right: 8),
+              decoration: BoxDecoration(
+                color: kDanger.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: IconButton(
+                tooltip: 'Se déconnecter',
+                icon: const Icon(
+                  Icons.logout_rounded,
+                  color: kDanger,
+                  size: 21,
+                ),
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      title: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: kDanger.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(Icons.logout_rounded, color: kDanger, size: 20),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            'Déconnexion',
+                            style: GoogleFonts.outfit(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 18,
+                            ),
+                          ),
+                        ],
+                      ),
+                      content: Text(
+                        'Êtes-vous sûr de vouloir vous déconnecter de votre session ?',
+                        style: GoogleFonts.outfit(fontSize: 14),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.of(ctx).pop(),
+                          child: Text(
+                            'Annuler',
+                            style: GoogleFonts.outfit(
+                              color: isDark ? kDarkTextSecondary : kTextSecondary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: kDanger,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                          ),
+                          icon: const Icon(Icons.logout_rounded, size: 18),
+                          label: Text(
+                            'Se déconnecter',
+                            style: GoogleFonts.outfit(fontWeight: FontWeight.w700),
+                          ),
+                          onPressed: () {
+                            Navigator.of(ctx).pop();
+                            _appState.logout();
+                            Navigator.of(context).pushReplacement(
+                              MaterialPageRoute(builder: (_) => const LoginScreen()),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
           ],
+
         );
 
         return AnimatedMeshBackground(

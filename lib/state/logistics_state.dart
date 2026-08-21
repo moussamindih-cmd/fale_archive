@@ -73,7 +73,8 @@ class LogisticsState extends ChangeNotifier {
       }
       if (keyword != null && keyword.isNotEmpty) {
         final kw = keyword.toLowerCase();
-        final match = i.reference.toLowerCase().contains(kw) ||
+        final match =
+            i.reference.toLowerCase().contains(kw) ||
             i.supplier.toLowerCase().contains(kw) ||
             i.notes.toLowerCase().contains(kw) ||
             i.documentType.label.toLowerCase().contains(kw);
@@ -82,8 +83,7 @@ class LogisticsState extends ChangeNotifier {
       if (fromDate != null && i.issueDate.isBefore(fromDate)) return false;
       if (toDate != null && i.issueDate.isAfter(toDate)) return false;
       return true;
-    }).toList()
-      ..sort((a, b) => b.issueDate.compareTo(a.issueDate));
+    }).toList()..sort((a, b) => b.issueDate.compareTo(a.issueDate));
   }
 
   // ─── CRUD ───────────────────────────────────────────────────────────────
@@ -122,8 +122,24 @@ class LogisticsState extends ChangeNotifier {
     // Mise à jour optimiste
     _items.insert(0, item);
     notifyListeners();
-    // Persistance Supabase
-    await SupabaseService.instance.insertLogisticsItem(item);
+    // Upload des fichiers joints puis persistance Supabase
+    final uploaded = await Future.wait(
+      files.map(
+        (f) => SupabaseService.instance.uploadDocument(
+          module: 'logistics',
+          entityId: item.id,
+          file: f,
+        ),
+      ),
+    );
+    final idx = _items.indexWhere((i) => i.id == item.id);
+    if (idx != -1) {
+      _items[idx] = _items[idx].copyWith(files: uploaded);
+      notifyListeners();
+    }
+    await SupabaseService.instance.insertLogisticsItem(
+      item.copyWith(files: uploaded),
+    );
     await SupabaseService.instance.insertHistoryEntry(
       entry: entry,
       logisticsItemId: item.id,
@@ -162,6 +178,23 @@ class LogisticsState extends ChangeNotifier {
       history: [...old.history, entry],
     );
     notifyListeners();
+    List<AttachedFile>? uploadedFiles;
+    if (files != null) {
+      uploadedFiles = await Future.wait(
+        files.map(
+          (f) => SupabaseService.instance.uploadDocument(
+            module: 'logistics',
+            entityId: id,
+            file: f,
+          ),
+        ),
+      );
+      final freshIdx = _items.indexWhere((i) => i.id == id);
+      if (freshIdx != -1) {
+        _items[freshIdx] = _items[freshIdx].copyWith(files: uploadedFiles);
+        notifyListeners();
+      }
+    }
     await SupabaseService.instance.updateLogisticsItem(
       id: id,
       documentType: documentType,
@@ -170,6 +203,7 @@ class LogisticsState extends ChangeNotifier {
       supplier: supplier,
       issueDate: issueDate,
       notes: notes,
+      files: uploadedFiles,
     );
     await SupabaseService.instance.insertHistoryEntry(
       entry: entry,
@@ -197,7 +231,10 @@ class LogisticsState extends ChangeNotifier {
       history: [...old.history, entry],
     );
     notifyListeners();
-    await SupabaseService.instance.validateLogisticsItem(id: id, validatedByName: validatorName);
+    await SupabaseService.instance.validateLogisticsItem(
+      id: id,
+      validatedByName: validatorName,
+    );
     await SupabaseService.instance.insertHistoryEntry(
       entry: entry,
       logisticsItemId: id,
@@ -227,7 +264,10 @@ class LogisticsState extends ChangeNotifier {
       history: [...old.history, entry],
     );
     notifyListeners();
-    await SupabaseService.instance.rejectLogisticsItem(id: id, validatedByName: validatorName);
+    await SupabaseService.instance.rejectLogisticsItem(
+      id: id,
+      validatedByName: validatorName,
+    );
     await SupabaseService.instance.insertHistoryEntry(
       entry: entry,
       logisticsItemId: id,

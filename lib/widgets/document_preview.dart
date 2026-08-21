@@ -5,6 +5,7 @@ import '../models/attached_file.dart';
 import '../models/daily_archive.dart';
 import '../theme/app_theme.dart';
 import '../screens/archive_viewer.dart';
+import '../services/supabase_service.dart';
 
 /// Widget réutilisable pour afficher un aperçu de document attaché.
 class DocumentPreview extends StatelessWidget {
@@ -27,13 +28,44 @@ class DocumentPreview extends StatelessWidget {
 
     if (compact) {
       return GestureDetector(
-        onTap: () {
-          Navigator.push(context, MaterialPageRoute(builder: (_) => ArchiveViewer(file: file, heroTag: file.name)));
-        },
+        onTap: () => _openViewer(context),
         child: _buildCompactChip(iconData, color, isDark),
       );
     }
     return _buildFullCard(context, iconData, color, isDark);
+  }
+
+  /// Ouvre l'aperçu du fichier, en téléchargeant ses octets à la demande
+  /// s'il n'a pas encore été chargé en mémoire (cas d'un fichier persisté
+  /// côté serveur, rechargé sans ses données brutes).
+  Future<void> _openViewer(BuildContext context) async {
+    var toShow = file;
+    if (toShow.bytes == null && toShow.storagePath != null) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const Center(child: CircularProgressIndicator()),
+      );
+      final bytes = await SupabaseService.instance.downloadDocument(
+        toShow.storagePath!,
+      );
+      if (!context.mounted) return;
+      Navigator.pop(context); // Ferme l'indicateur de chargement
+      if (bytes == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Impossible de charger le document.')),
+        );
+        return;
+      }
+      toShow = toShow.copyWith(bytes: bytes);
+    }
+    if (!context.mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ArchiveViewer(file: toShow, heroTag: toShow.name),
+      ),
+    );
   }
 
   Widget _buildCompactChip(IconData iconData, Color color, bool isDark) {
@@ -64,14 +96,23 @@ class DocumentPreview extends StatelessWidget {
           ),
           if (file.isScanned) ...[
             const SizedBox(width: 4),
-            const Icon(Icons.document_scanner_rounded, size: 10, color: Color(0xFF0D9488)),
+            const Icon(
+              Icons.document_scanner_rounded,
+              size: 10,
+              color: Color(0xFF0D9488),
+            ),
           ],
         ],
       ),
     );
   }
 
-  Widget _buildFullCard(BuildContext context, IconData iconData, Color color, bool isDark) {
+  Widget _buildFullCard(
+    BuildContext context,
+    IconData iconData,
+    Color color,
+    bool isDark,
+  ) {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
@@ -83,9 +124,7 @@ class DocumentPreview extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(14),
-          onTap: () {
-            Navigator.push(context, MaterialPageRoute(builder: (_) => ArchiveViewer(file: file, heroTag: file.name)));
-          },
+          onTap: () => _openViewer(context),
           child: Padding(
             padding: const EdgeInsets.all(12),
             child: Row(
@@ -118,7 +157,10 @@ class DocumentPreview extends StatelessWidget {
                       Row(
                         children: [
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
                               color: color.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(4),
@@ -143,15 +185,24 @@ class DocumentPreview extends StatelessWidget {
                           if (file.isScanned) ...[
                             const SizedBox(width: 6),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF0D9488).withValues(alpha: 0.1),
+                                color: const Color(
+                                  0xFF0D9488,
+                                ).withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  const Icon(Icons.document_scanner_rounded, size: 10, color: Color(0xFF0D9488)),
+                                  const Icon(
+                                    Icons.document_scanner_rounded,
+                                    size: 10,
+                                    color: Color(0xFF0D9488),
+                                  ),
                                   const SizedBox(width: 3),
                                   Text(
                                     'Scanné',
@@ -172,7 +223,11 @@ class DocumentPreview extends StatelessWidget {
                 ),
                 if (onRemove != null)
                   IconButton(
-                    icon: Icon(Icons.close_rounded, size: 18, color: isDark ? kDarkTextMuted : kTextMuted),
+                    icon: Icon(
+                      Icons.close_rounded,
+                      size: 18,
+                      color: isDark ? kDarkTextMuted : kTextMuted,
+                    ),
                     tooltip: 'Supprimer',
                     onPressed: onRemove,
                   ),
@@ -186,27 +241,59 @@ class DocumentPreview extends StatelessWidget {
 
   static IconData iconForExt(String ext) {
     switch (ext.toLowerCase()) {
-      case 'pdf': return Icons.picture_as_pdf_rounded;
-      case 'doc': case 'docx': return Icons.description_rounded;
-      case 'xls': case 'xlsx': return Icons.table_chart_rounded;
-      case 'ppt': case 'pptx': return Icons.slideshow_rounded;
-      case 'jpg': case 'jpeg': case 'png': case 'webp': case 'gif': return Icons.image_rounded;
-      case 'txt': return Icons.text_snippet_rounded;
-      case 'zip': case 'rar': return Icons.folder_zip_rounded;
-      default: return Icons.insert_drive_file_rounded;
+      case 'pdf':
+        return Icons.picture_as_pdf_rounded;
+      case 'doc':
+      case 'docx':
+        return Icons.description_rounded;
+      case 'xls':
+      case 'xlsx':
+        return Icons.table_chart_rounded;
+      case 'ppt':
+      case 'pptx':
+        return Icons.slideshow_rounded;
+      case 'jpg':
+      case 'jpeg':
+      case 'png':
+      case 'webp':
+      case 'gif':
+        return Icons.image_rounded;
+      case 'txt':
+        return Icons.text_snippet_rounded;
+      case 'zip':
+      case 'rar':
+        return Icons.folder_zip_rounded;
+      default:
+        return Icons.insert_drive_file_rounded;
     }
   }
 
   static Color colorForExt(String ext) {
     switch (ext.toLowerCase()) {
-      case 'pdf': return const Color(0xFFEF4444);
-      case 'doc': case 'docx': return const Color(0xFF3B82F6);
-      case 'xls': case 'xlsx': return const Color(0xFF10B981);
-      case 'ppt': case 'pptx': return const Color(0xFFF97316);
-      case 'jpg': case 'jpeg': case 'png': case 'webp': case 'gif': return const Color(0xFF8B5CF6);
-      case 'txt': return const Color(0xFF64748B);
-      case 'zip': case 'rar': return const Color(0xFFF59E0B);
-      default: return const Color(0xFF475569);
+      case 'pdf':
+        return const Color(0xFFEF4444);
+      case 'doc':
+      case 'docx':
+        return const Color(0xFF3B82F6);
+      case 'xls':
+      case 'xlsx':
+        return const Color(0xFF10B981);
+      case 'ppt':
+      case 'pptx':
+        return const Color(0xFFF97316);
+      case 'jpg':
+      case 'jpeg':
+      case 'png':
+      case 'webp':
+      case 'gif':
+        return const Color(0xFF8B5CF6);
+      case 'txt':
+        return const Color(0xFF64748B);
+      case 'zip':
+      case 'rar':
+        return const Color(0xFFF59E0B);
+      default:
+        return const Color(0xFF475569);
     }
   }
 }
@@ -294,7 +381,10 @@ class DocumentPreviewSheet extends StatelessWidget {
                   ),
                 ),
                 IconButton(
-                  icon: Icon(Icons.close_rounded, color: isDark ? kDarkTextSecondary : kTextSecondary),
+                  icon: Icon(
+                    Icons.close_rounded,
+                    color: isDark ? kDarkTextSecondary : kTextSecondary,
+                  ),
                   onPressed: () => Navigator.pop(context),
                 ),
               ],
@@ -325,7 +415,9 @@ class DocumentPreviewSheet extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: isDark ? kDarkCard : kSurfaceSubtle,
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: isDark ? kDarkBorder : kBorderColor),
+                        border: Border.all(
+                          color: isDark ? kDarkBorder : kBorderColor,
+                        ),
                       ),
                       child: Text(
                         arc.summary,
@@ -351,11 +443,18 @@ class DocumentPreviewSheet extends StatelessWidget {
                     const SizedBox(height: 6),
                     Row(
                       children: [
-                        Icon(Icons.location_on_outlined, size: 16, color: color),
+                        Icon(
+                          Icons.location_on_outlined,
+                          size: 16,
+                          color: color,
+                        ),
                         const SizedBox(width: 6),
                         Text(
                           arc.physicalLocation,
-                          style: GoogleFonts.outfit(fontSize: 13, color: isDark ? kDarkTextSecondary : kTextSecondary),
+                          style: GoogleFonts.outfit(
+                            fontSize: 13,
+                            color: isDark ? kDarkTextSecondary : kTextSecondary,
+                          ),
                         ),
                       ],
                     ),
@@ -373,7 +472,13 @@ class DocumentPreviewSheet extends StatelessWidget {
                   const SizedBox(height: 10),
 
                   if (arc.files.isEmpty)
-                    Text('Aucun fichier joint à cette archive.', style: GoogleFonts.outfit(fontSize: 13, color: Colors.grey))
+                    Text(
+                      'Aucun fichier joint à cette archive.',
+                      style: GoogleFonts.outfit(
+                        fontSize: 13,
+                        color: Colors.grey,
+                      ),
+                    )
                   else
                     ...arc.files.map((file) => DocumentPreview(file: file)),
                 ],
