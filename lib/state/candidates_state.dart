@@ -53,6 +53,42 @@ class CandidatesState extends ChangeNotifier {
   /// Nombre total de candidats actifs
   int get totalActive => candidates.length;
 
+  // ─── Séries temporelles & tendances (dashboards) ────────────────────────
+
+  /// Candidatures reçues par jour sur les [days] derniers jours,
+  /// du plus ancien au plus récent.
+  List<int> candidatesPerDay(int days) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    return List.generate(days, (i) {
+      final day = today.subtract(Duration(days: days - 1 - i));
+      return candidates
+          .where((c) =>
+              c.applicationDate.year == day.year &&
+              c.applicationDate.month == day.month &&
+              c.applicationDate.day == day.day)
+          .length;
+    });
+  }
+
+  /// Candidatures reçues sur les 7 derniers jours.
+  int get candidatesThisWeek => _countBetween(7, 0);
+
+  /// Candidatures reçues sur les 7 jours précédents — base de comparaison.
+  int get candidatesPreviousWeek => _countBetween(14, 7);
+
+  int _countBetween(int fromDaysAgo, int toDaysAgo) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final from = today.subtract(Duration(days: fromDaysAgo - 1));
+    final to = today.subtract(Duration(days: toDaysAgo - 1));
+    return candidates
+        .where((c) =>
+            !c.applicationDate.isBefore(from) &&
+            (toDaysAgo == 0 || c.applicationDate.isBefore(to)))
+        .length;
+  }
+
   // ─── Filtrage ───────────────────────────────────────────────────────────
 
   List<Candidate> filteredCandidates({
