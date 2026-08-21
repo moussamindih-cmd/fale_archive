@@ -7,6 +7,20 @@
 
 # The following line activates a set of recommended lints for Flutter apps,
 # packages, and plugins designed to encourage good coding practices.
+analyzer:
+  exclude:
+    - build/**
+    - android/**
+    - ios/**
+    - web/**
+    - windows/**
+    - macos/**
+    - linux/**
+    # Arborescences non atteignables depuis lib/main.dart (aucun import entrant).
+    # Les fichiers restent en place, ils ne sont simplement plus analysés.
+    - lib/presentation/**
+    - lib/core/**
+    - lib/data/**
 include: package:flutter_lints/flutter.yaml
 
 linter:

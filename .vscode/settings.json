@@ -1,0 +1,16 @@
+{
+  "dart.analysisExcludedFolders": [
+    "lib/presentation",
+    "lib/core",
+    "lib/data"
+  ],
+  "sonarlint.analysisExcludesStandalone": "lib/presentation/**,lib/core/**,lib/data/**",
+  "files.watcherExclude": {
+    "**/build/**": true,
+    "**/.dart_tool/**": true
+  },
+  "search.exclude": {
+    "**/build": true,
+    "**/.dart_tool": true
+  }
+}

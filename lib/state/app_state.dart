@@ -180,6 +180,62 @@ class AppState extends ChangeNotifier {
     };
   }
 
+  // ─── Séries temporelles & tendances (dashboards) ─────────────────────
+
+  /// Nombre d'archives par jour sur les [days] derniers jours,
+  /// du plus ancien au plus récent. Alimente le graphique d'activité.
+  List<int> archivesPerDay(int days) => _perDay(_allArchives, days);
+
+  /// Même découpage, restreint aux archives de l'employé connecté.
+  List<int> myArchivesPerDay(int days) => _perDay(myArchives, days);
+
+  List<int> _perDay(List<DailyArchive> source, int days) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    return List.generate(days, (i) {
+      final day = today.subtract(Duration(days: days - 1 - i));
+      return source
+          .where(
+            (a) =>
+                a.archiveDate.year == day.year &&
+                a.archiveDate.month == day.month &&
+                a.archiveDate.day == day.day,
+          )
+          .length;
+    });
+  }
+
+  /// Archives déposées hier — base de comparaison du jour courant.
+  int get archivesYesterday {
+    final yesterday = DateTime.now().subtract(const Duration(days: 1));
+    return _allArchives
+        .where(
+          (a) =>
+              a.archiveDate.year == yesterday.year &&
+              a.archiveDate.month == yesterday.month &&
+              a.archiveDate.day == yesterday.day,
+        )
+        .length;
+  }
+
+  /// Archives de la semaine précédente — base de comparaison hebdomadaire.
+  int get archivesPreviousWeek {
+    final now = DateTime.now();
+    final startOfWeek = DateTime(
+      now.year,
+      now.month,
+      now.day,
+    ).subtract(Duration(days: now.weekday - 1));
+    final startOfPrevious = startOfWeek.subtract(const Duration(days: 7));
+    return _allArchives
+        .where(
+          (a) =>
+              !a.archiveDate.isBefore(startOfPrevious) &&
+              a.archiveDate.isBefore(startOfWeek),
+        )
+        .length;
+  }
+
   // ─── Auth Methods ────────────────────────────────────────────────────────
 
   /// Connexion via Supabase Auth — retourne null si ok, sinon le message d'erreur
@@ -222,10 +278,12 @@ class AppState extends ChangeNotifier {
   }) async {
     if (fullName.trim().isEmpty) return 'Le nom complet est obligatoire.';
     if (email.trim().isEmpty || !email.contains('@')) return 'Email invalide.';
-    if (password.length < 6)
+    if (password.length < 6) {
       return 'Le mot de passe doit avoir au moins 6 caractères.';
-    if (role == UserRole.employe && jobTitle.isEmpty)
+    }
+    if (role == UserRole.employe && jobTitle.isEmpty) {
       return 'Veuillez choisir votre poste.';
+    }
 
     _isLoading = true;
     notifyListeners();

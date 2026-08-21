@@ -44,6 +44,42 @@ class LogisticsState extends ChangeNotifier {
   /// Nombre total de documents
   int get totalCount => items.length;
 
+  // ─── Séries temporelles & tendances (dashboards) ────────────────────────
+
+  /// Pièces émises par jour sur les [days] derniers jours,
+  /// du plus ancien au plus récent.
+  List<int> itemsPerDay(int days) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    return List.generate(days, (i) {
+      final day = today.subtract(Duration(days: days - 1 - i));
+      return items
+          .where((it) =>
+              it.issueDate.year == day.year &&
+              it.issueDate.month == day.month &&
+              it.issueDate.day == day.day)
+          .length;
+    });
+  }
+
+  /// Pièces émises sur les 7 derniers jours.
+  int get itemsThisWeek => _countBetween(7, 0);
+
+  /// Pièces émises sur les 7 jours précédents — base de comparaison.
+  int get itemsPreviousWeek => _countBetween(14, 7);
+
+  int _countBetween(int fromDaysAgo, int toDaysAgo) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final from = today.subtract(Duration(days: fromDaysAgo - 1));
+    final to = today.subtract(Duration(days: toDaysAgo - 1));
+    return items
+        .where((it) =>
+            !it.issueDate.isBefore(from) &&
+            (toDaysAgo == 0 || it.issueDate.isBefore(to)))
+        .length;
+  }
+
   /// Statistiques par statut
   Map<LogisticsStatus, int> get itemsByStatus {
     final map = <LogisticsStatus, int>{};
