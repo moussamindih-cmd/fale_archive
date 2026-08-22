@@ -1,14 +1,22 @@
-import 'dart:typed_data';
+import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/employee.dart';
+import '../models/application.dart';
+import '../models/archive_category.dart';
+import '../models/archive_search.dart';
 import '../models/attached_file.dart';
+import '../models/document_version.dart';
 import '../models/daily_archive.dart';
 import '../models/candidate.dart';
 import '../models/logistics_item.dart';
 import '../models/action_history_entry.dart';
+import '../models/hr_metrics.dart';
 import '../models/in_app_notification.dart';
+import '../models/job_offer.dart';
 import '../models/user_role.dart';
 import '../models/subscription.dart';
+import 'retention_service.dart';
 
 /// Service Supabase — singleton qui centralise tous les accès à la base
 class SupabaseService {
@@ -100,7 +108,7 @@ class SupabaseService {
   }
 
   /// Organisation de l'utilisateur connecté (mise en cache pour éviter une
-  /// requête à chaque upload de document).
+  /// requête à chaque écriture).
   Future<String?> _currentOrganizationId() async {
     if (_cachedOrganizationId != null) return _cachedOrganizationId;
     final userId = _client.auth.currentUser?.id;
@@ -112,6 +120,22 @@ class SupabaseService {
         .maybeSingle();
     _cachedOrganizationId = row?['organization_id'] as String?;
     return _cachedOrganizationId;
+  }
+
+  /// Organisation de l'utilisateur connecté, ou une exception.
+  ///
+  /// Toute écriture doit porter son `organization_id` : c'est la colonne sur
+  /// laquelle repose le cloisonnement RLS. Sans elle, la ligne est soit
+  /// rejetée, soit — pire — rattachée à la mauvaise organisation.
+  Future<String> _requireOrganizationId() async {
+    final organizationId = await _currentOrganizationId();
+    if (organizationId == null || organizationId.isEmpty) {
+      throw StateError(
+        'Aucune organisation rattachée au compte connecté : '
+        'opération refusée pour ne pas produire de donnée orpheline.',
+      );
+    }
+    return organizationId;
   }
 
   /// Utilisateur Auth actuellement connecté
@@ -140,7 +164,7 @@ class SupabaseService {
         .from('employees')
         .select()
         .order('created_at', ascending: true);
-    return (data as List).map((m) => _mapEmployee(m)).toList();
+    return data.map(_mapEmployee).toList();
   }
 
   Future<void> updateEmployee({
@@ -195,18 +219,29 @@ class SupabaseService {
     required AttachedFile file,
   }) async {
     if (file.storagePath != null || file.bytes == null) return file;
-    final organizationId = await _currentOrganizationId();
-    if (organizationId == null) return file;
+    // Auparavant, une organisation nulle faisait retourner le fichier tel
+    // quel : la pièce jointe disparaissait sans le moindre message.
+    final organizationId = await _requireOrganizationId();
+    final bytes = Uint8List.fromList(file.bytes!);
     final path =
         '$organizationId/$module/$entityId/${DateTime.now().millisecondsSinceEpoch}-${file.name}';
-    await _client.storage
-        .from('documents')
-        .uploadBinary(
+    await _client.storage.from('documents').uploadBinary(
           path,
-          Uint8List.fromList(file.bytes!),
-          fileOptions: const FileOptions(upsert: true),
+          bytes,
+          fileOptions: FileOptions(
+            upsert: true,
+            contentType: mimeTypeFor(file.extension),
+          ),
         );
-    return file.copyWith(storagePath: path);
+    return file.copyWith(
+      storagePath: path,
+      mimeType: mimeTypeFor(file.extension),
+      // Empreinte du contenu : permet de détecter une altération et
+      // d'écarter une révision identique à la précédente (§5.1.6).
+      checksumSha256: sha256.convert(bytes).toString(),
+      uploadedBy: _client.auth.currentUser?.id,
+      uploadedAt: DateTime.now(),
+    );
   }
 
   /// Télécharger les octets d'un fichier joint précédemment uploadé.
@@ -236,7 +271,7 @@ class SupabaseService {
         .select()
         .filter('deleted_at', 'is', null)
         .order('submitted_at', ascending: false);
-    return (data as List).map((m) => _mapArchive(m)).toList();
+    return data.map(_mapArchive).toList();
   }
 
   Future<List<DailyArchive>> fetchDeletedArchives() async {
@@ -245,7 +280,7 @@ class SupabaseService {
         .select()
         .not('deleted_at', 'is', null)
         .order('deleted_at', ascending: false);
-    return (data as List).map((m) => _mapArchive(m)).toList();
+    return data.map(_mapArchive).toList();
   }
 
   Future<void> softDeleteArchive(String id) async {
@@ -270,6 +305,7 @@ class SupabaseService {
     try {
       await _client.from('daily_archives').insert({
         'id': archive.id,
+        'organization_id': await _requireOrganizationId(),
         'employee_id': archive.employeeId,
         'employee_name': archive.employeeName,
         'job_title': archive.jobTitle,
@@ -288,6 +324,177 @@ class SupabaseService {
     }
   }
 
+  /// Modifier une archive déjà déposée (§5.1.6).
+  ///
+  /// N'existait pas : une archive soumise était définitivement immuable, ce
+  /// qui rendait impossible aussi bien la correction d'une erreur de saisie
+  /// que l'historique des modifications exigé par le cahier des charges.
+  Future<String?> updateArchive({
+    required String id,
+    String? title,
+    String? summary,
+    String? category,
+    String? categoryId,
+    String? documentTypeId,
+    List<String>? keywords,
+    String? physicalLocation,
+    int? documentCount,
+    bool? legalHold,
+    List<AttachedFile>? files,
+  }) async {
+    try {
+      final updates = <String, dynamic>{};
+      if (title != null) updates['title'] = title;
+      if (summary != null) updates['summary'] = summary;
+      if (category != null) updates['category'] = category;
+      if (categoryId != null) updates['category_id'] = categoryId;
+      if (documentTypeId != null) updates['document_type_id'] = documentTypeId;
+      if (keywords != null) updates['keywords'] = keywords;
+      if (physicalLocation != null) {
+        updates['physical_location'] = physicalLocation;
+      }
+      if (documentCount != null) updates['document_count'] = documentCount;
+      if (legalHold != null) updates['legal_hold'] = legalHold;
+      if (files != null) {
+        updates['documents'] = files.map((f) => f.toJson()).toList();
+      }
+      if (updates.isEmpty) return null;
+
+      await _client.from('daily_archives').update(updates).eq('id', id);
+      return null;
+    } catch (e) {
+      return 'Erreur lors de la modification de l\'archive : $e';
+    }
+  }
+
+  /// Recherche serveur (§5.1.3).
+  ///
+  /// Remplace le filtrage `contains()` sur les listes chargées en mémoire :
+  /// l'index GIN fait le travail, la pagination borne le transfert, et le
+  /// classement tient compte de la pondération des champs.
+  Future<ArchiveSearchPage> searchArchives({
+    String? query,
+    String? categoryId,
+    DateTime? from,
+    DateTime? to,
+    String? employeeId,
+    int limit = 50,
+    int offset = 0,
+  }) async {
+    String? day(DateTime? d) => d?.toIso8601String().substring(0, 10);
+
+    final rows = await _client.rpc('search_archives', params: {
+      'p_query': (query == null || query.trim().isEmpty) ? null : query.trim(),
+      'p_category': categoryId,
+      'p_from': day(from),
+      'p_to': day(to),
+      'p_employee': employeeId,
+      'p_limit': limit,
+      'p_offset': offset,
+    }) as List;
+
+    final results = rows
+        .cast<Map<String, dynamic>>()
+        .map(ArchiveSearchResult.fromJson)
+        .toList();
+
+    return ArchiveSearchPage(
+      results: results,
+      // `total_count` est calculé par une fenêtre sur la requête filtrée :
+      // il vaut pour l'ensemble du résultat, pas pour la seule page.
+      totalCount: results.isEmpty ? 0 : results.first.totalCount,
+      offset: offset,
+      limit: limit,
+    );
+  }
+
+  /// Journalise une consultation de document (§5.1.5).
+  ///
+  /// Une lecture ne déclenche aucun trigger : elle doit être déclarée. La
+  /// fonction serveur déduit l'acteur du JWT, il n'est donc pas falsifiable.
+  Future<void> logDocumentAccess({
+    required String entityType,
+    required String entityId,
+    String? details,
+  }) async {
+    try {
+      await _client.rpc('log_document_access', params: {
+        'p_entity_type': entityType,
+        'p_entity_id': entityId,
+        'p_details': details,
+      });
+    } catch (e) {
+      debugPrint('Échec de journalisation de consultation : $e');
+    }
+  }
+
+  // ─── Taxonomie et conservation (§5.1.2, §5.1.4) ──────────────────────────
+
+  Future<List<ArchiveCategory>> fetchCategories() async {
+    final data = await _client
+        .from('categories')
+        .select()
+        .eq('is_active', true)
+        .order('sort_order', ascending: true);
+    return data.map(ArchiveCategory.fromJson).toList();
+  }
+
+  Future<List<RetentionRule>> fetchDocumentTypes() async {
+    final data = await _client
+        .from('document_types')
+        .select()
+        .eq('is_active', true)
+        .order('label', ascending: true);
+    return data.map(RetentionRule.fromJson).toList();
+  }
+
+  // ─── Versions de documents (§5.1.6) ──────────────────────────────────────
+
+  Future<List<DocumentVersion>> fetchDocumentVersions(String archiveId) async {
+    final data = await _client
+        .from('document_versions')
+        .select()
+        .eq('archive_id', archiveId)
+        .order('version_number', ascending: false);
+    return data.map(DocumentVersion.fromJson).toList();
+  }
+
+  /// Enregistre une nouvelle révision d'une pièce jointe.
+  ///
+  /// Le numéro de version et le refus d'un contenu identique sont gérés
+  /// côté base : deux clients concurrents ne peuvent pas produire le même
+  /// numéro, ce qu'un calcul applicatif ne garantirait pas.
+  Future<String?> addDocumentVersion({
+    required String archiveId,
+    required AttachedFile file,
+    String? comment,
+  }) async {
+    try {
+      if (file.storagePath == null) {
+        return 'La pièce doit être envoyée avant d\'être versionnée.';
+      }
+      await _client.from('document_versions').insert({
+        'organization_id': await _requireOrganizationId(),
+        'archive_id': archiveId,
+        'file_name': file.name,
+        'mime_type': file.mimeType,
+        'size_bytes': file.sizeBytes,
+        'checksum_sha256': file.checksumSha256,
+        'storage_path': file.storagePath,
+        'comment': comment,
+        'created_by': _client.auth.currentUser?.id,
+      });
+      return null;
+    } on PostgrestException catch (e) {
+      if (e.code == '23505') {
+        return 'Cette version est identique à la précédente.';
+      }
+      return 'Erreur lors de l\'enregistrement de la version : ${e.message}';
+    } catch (e) {
+      return 'Erreur lors de l\'enregistrement de la version : $e';
+    }
+  }
+
   // ─── Candidates ──────────────────────────────────────────────────────────
 
   Future<List<Candidate>> fetchAllCandidates() async {
@@ -295,13 +502,14 @@ class SupabaseService {
         .from('candidates')
         .select()
         .order('application_date', ascending: false);
-    return (data as List).map((m) => _mapCandidate(m)).toList();
+    return data.map(_mapCandidate).toList();
   }
 
   Future<String?> insertCandidate(Candidate candidate) async {
     try {
       await _client.from('candidates').insert({
         'id': candidate.id,
+        'organization_id': await _requireOrganizationId(),
         'full_name': candidate.fullName,
         'target_position': candidate.targetPosition,
         'email': candidate.email,
@@ -361,13 +569,14 @@ class SupabaseService {
         .from('logistics_items')
         .select()
         .order('issue_date', ascending: false);
-    return (data as List).map((m) => _mapLogisticsItem(m)).toList();
+    return data.map(_mapLogisticsItem).toList();
   }
 
   Future<String?> insertLogisticsItem(LogisticsItem item) async {
     try {
       await _client.from('logistics_items').insert({
         'id': item.id,
+        'organization_id': await _requireOrganizationId(),
         'document_type': item.documentType.name,
         'reference': item.reference,
         'amount': item.amount,
@@ -447,6 +656,8 @@ class SupabaseService {
   }) async {
     try {
       await _client.from('action_history_entries').insert({
+        'organization_id': await _requireOrganizationId(),
+        'employee_id': _client.auth.currentUser?.id,
         'user_name': entry.userName,
         'action': entry.action,
         'details': entry.details,
@@ -454,8 +665,11 @@ class SupabaseService {
         if (candidateId != null) 'candidate_id': candidateId,
         if (logisticsItemId != null) 'logistics_item_id': logisticsItemId,
       });
-    } catch (_) {
-      // Ne pas bloquer l'UI si le log échoue
+    } catch (e) {
+      // Le journal ne doit pas bloquer l'action de l'utilisateur, mais un
+      // échec silencieux masque une piste d'audit incomplète : on le remonte
+      // au moins en console jusqu'à la bascule sur les triggers serveur.
+      debugPrint('Échec d\'écriture du journal d\'activité : $e');
     }
   }
 
@@ -465,7 +679,7 @@ class SupabaseService {
         .select()
         .order('timestamp', ascending: false)
         .limit(limit);
-    return (data as List)
+    return data
         .map(
           (m) => ActionHistoryEntry(
             userName: m['user_name'] as String,
@@ -491,7 +705,7 @@ class SupabaseService {
         )
         .order('timestamp', ascending: false)
         .limit(50);
-    return (data as List)
+    return data
         .map(
           (m) => InAppNotification.fromJson({
             'id': m['id'],
@@ -518,6 +732,7 @@ class SupabaseService {
   Future<void> insertNotification(InAppNotification notif) async {
     await _client.from('in_app_notifications').insert({
       'id': notif.id,
+      'organization_id': await _requireOrganizationId(),
       'title': notif.title,
       'message': notif.message,
       'type': notif.type.name,
@@ -527,6 +742,404 @@ class SupabaseService {
       'target_role': notif.targetRole,
       'target_user_id': notif.targetUserId,
     });
+  }
+
+  // ─── Offres d'emploi (§5.2) ──────────────────────────────────────────────
+
+  /// Offres de l'organisation. [includeTemplates] à false pour la liste
+  /// courante : un modèle n'est pas une offre à pourvoir.
+  Future<List<JobOffer>> fetchJobOffers({bool includeTemplates = false}) async {
+    var query = _client.from('job_offers').select();
+    if (!includeTemplates) {
+      query = query.eq('is_template', false);
+    }
+    final data = await query.order('created_at', ascending: false);
+    return data.map(JobOffer.fromJson).toList();
+  }
+
+  Future<List<JobOffer>> fetchJobOfferTemplates() async {
+    final data = await _client
+        .from('job_offers')
+        .select()
+        .eq('is_template', true)
+        .order('template_name', ascending: true);
+    return data.map(JobOffer.fromJson).toList();
+  }
+
+  /// Crée une offre. Elle démarre toujours en brouillon : le workflow de
+  /// validation n'est pas contournable par le point d'entrée de création.
+  Future<String?> createJobOffer(JobOffer offer, {bool asTemplate = false}) async {
+    try {
+      final row = await _client
+          .from('job_offers')
+          .insert({
+            ...offer.toWritableJson(),
+            'organization_id': await _requireOrganizationId(),
+            'created_by': _client.auth.currentUser?.id,
+            'is_template': asTemplate,
+            if (asTemplate) 'template_name': offer.templateName ?? offer.title,
+          })
+          .select('id')
+          .single();
+      return row['id'] as String;
+    } on PostgrestException catch (e) {
+      throw JobOfferException(_translateOfferError(e));
+    }
+  }
+
+  Future<void> updateJobOffer(String id, JobOffer offer) async {
+    try {
+      await _client
+          .from('job_offers')
+          .update(offer.toWritableJson())
+          .eq('id', id);
+    } on PostgrestException catch (e) {
+      throw JobOfferException(_translateOfferError(e));
+    }
+  }
+
+  /// Fait avancer le workflow de validation (§5.2.2).
+  ///
+  /// La transition et l'habilitation sont vérifiées côté base : un appel
+  /// direct à PostgREST ne peut pas publier sans validation.
+  Future<void> changeOfferWorkflow({
+    required String id,
+    required OfferWorkflowStatus status,
+    String? reason,
+  }) async {
+    try {
+      await _client.from('job_offers').update({
+        'workflow_status': status.code,
+        if (reason != null) 'rejection_reason': reason,
+      }).eq('id', id);
+    } on PostgrestException catch (e) {
+      throw JobOfferException(_translateOfferError(e));
+    }
+  }
+
+  Future<void> changeOfferLifecycle({
+    required String id,
+    required OfferLifecycleStatus status,
+  }) async {
+    try {
+      await _client
+          .from('job_offers')
+          .update({'lifecycle_status': status.code}).eq('id', id);
+    } on PostgrestException catch (e) {
+      throw JobOfferException(_translateOfferError(e));
+    }
+  }
+
+  /// Duplique une offre ou instancie un modèle (§5.2.5).
+  /// La copie repart en brouillon, avec une nouvelle référence.
+  Future<String> duplicateJobOffer(
+    String sourceId, {
+    bool asTemplate = false,
+    String? title,
+  }) async {
+    try {
+      final id = await _client.rpc('duplicate_job_offer', params: {
+        'p_source_id': sourceId,
+        'p_as_template': asTemplate,
+        'p_title': title,
+      });
+      return id as String;
+    } on PostgrestException catch (e) {
+      throw JobOfferException(_translateOfferError(e));
+    }
+  }
+
+  Future<void> deleteJobOffer(String id) async {
+    try {
+      await _client.from('job_offers').delete().eq('id', id);
+    } on PostgrestException catch (e) {
+      throw JobOfferException(_translateOfferError(e));
+    }
+  }
+
+  Future<List<JobOfferTransition>> fetchOfferTransitions(String offerId) async {
+    final data = await _client
+        .from('job_offer_transitions')
+        .select('*, employees:changed_by(full_name)')
+        .eq('job_offer_id', offerId)
+        .order('changed_at', ascending: true);
+
+    return data.map((row) {
+      final employee = row['employees'] as Map<String, dynamic>?;
+      return JobOfferTransition.fromJson({
+        ...row,
+        'changed_by_name': employee?['full_name'],
+      });
+    }).toList();
+  }
+
+  /// Traduit les erreurs de contrainte en messages exploitables.
+  ///
+  /// Les messages bruts de PostgreSQL nomment des contraintes internes que
+  /// l'utilisateur ne peut pas comprendre.
+  String _translateOfferError(PostgrestException e) {
+    final message = e.message;
+    if (message.contains('job_offers_salary_range')) {
+      return 'Le salaire maximum doit être supérieur au minimum.';
+    }
+    if (message.contains('job_offers_template_not_published')) {
+      return 'Un modèle ne peut pas entrer dans le circuit de publication.';
+    }
+    if (message.contains('Transition de workflow interdite')) {
+      return 'Cette étape n\'est pas accessible depuis le statut actuel.';
+    }
+    if (message.contains('Un rejet doit être motivé')) {
+      return 'Merci d\'indiquer le motif du rejet.';
+    }
+    if (message.contains('Validation d\'offre non autorisée')) {
+      return 'Votre rôle ne permet pas de valider une offre.';
+    }
+    if (e.code == '23505') {
+      return 'Une offre porte déjà cette référence.';
+    }
+    if (e.code == '42501') {
+      return 'Action non autorisée pour votre rôle.';
+    }
+    return 'Erreur : $message';
+  }
+
+  // ─── Candidatures (§5.3) ─────────────────────────────────────────────────
+
+  Future<List<PipelineStage>> fetchPipelineStages() async {
+    final data = await _client
+        .from('pipeline_stages')
+        .select()
+        .eq('is_active', true)
+        .order('position', ascending: true);
+    return data.map(PipelineStage.fromJson).toList();
+  }
+
+  /// Candidatures avec le candidat et l'offre joints, pour éviter une
+  /// requête par ligne à l'affichage du tableau de bord.
+  Future<List<Application>> fetchApplications({String? jobOfferId}) async {
+    var query = _client.from('applications').select(
+        '*, candidates:candidate_id(full_name, email), '
+        'job_offers:job_offer_id(title, reference)');
+    if (jobOfferId != null) {
+      query = query.eq('job_offer_id', jobOfferId);
+    }
+    final data = await query.order('applied_at', ascending: false);
+    return data.map(Application.fromJson).toList();
+  }
+
+  Future<String> createApplication({
+    required String candidateId,
+    String? jobOfferId,
+    required String stageId,
+    ApplicationSource source = ApplicationSource.interne,
+  }) async {
+    try {
+      final row = await _client
+          .from('applications')
+          .insert({
+            'organization_id': await _requireOrganizationId(),
+            'candidate_id': candidateId,
+            'job_offer_id': jobOfferId,
+            'stage_id': stageId,
+            'source': source.code,
+          })
+          .select('id')
+          .single();
+      return row['id'] as String;
+    } on PostgrestException catch (e) {
+      throw ApplicationException(_translateApplicationError(e));
+    }
+  }
+
+  /// Déplace une candidature dans le pipeline (§5.3.2).
+  ///
+  /// L'historique, la clôture et la notification sont produits par un trigger :
+  /// un déplacement ne peut pas échapper à sa trace.
+  Future<void> moveApplication({
+    required String id,
+    required String stageId,
+  }) async {
+    try {
+      await _client
+          .from('applications')
+          .update({'stage_id': stageId}).eq('id', id);
+    } on PostgrestException catch (e) {
+      throw ApplicationException(_translateApplicationError(e));
+    }
+  }
+
+  Future<List<StageTransition>> fetchStageHistory(String applicationId) async {
+    final data = await _client
+        .from('application_stage_history')
+        .select('*, employees:changed_by(full_name)')
+        .eq('application_id', applicationId)
+        .order('changed_at', ascending: true);
+
+    return data.map((row) {
+      final employee = row['employees'] as Map<String, dynamic>?;
+      return StageTransition.fromJson({
+        ...row,
+        'changed_by_name': employee?['full_name'],
+      });
+    }).toList();
+  }
+
+  // ─── Avis et notations (§5.3.3) ──────────────────────────────────────────
+
+  Future<List<ApplicationNote>> fetchApplicationNotes(String applicationId) async {
+    final data = await _client
+        .from('application_notes')
+        .select('*, employees:author_id(full_name)')
+        .eq('application_id', applicationId)
+        .order('created_at', ascending: false);
+    return data.map(ApplicationNote.fromJson).toList();
+  }
+
+  Future<void> addApplicationNote({
+    required String applicationId,
+    required String body,
+    int? rating,
+    String? stageId,
+  }) async {
+    final authorId = _client.auth.currentUser?.id;
+    if (authorId == null) {
+      throw const ApplicationException('Aucune session active.');
+    }
+    try {
+      await _client.from('application_notes').insert({
+        'application_id': applicationId,
+        // La politique RLS exige author_id = auth.uid() : on ne peut pas
+        // signer au nom d'un collègue.
+        'author_id': authorId,
+        'body': body,
+        'rating': rating,
+        'stage_id': stageId,
+      });
+    } on PostgrestException catch (e) {
+      throw ApplicationException(_translateApplicationError(e));
+    }
+  }
+
+  Future<void> deleteApplicationNote(String id) async {
+    await _client.from('application_notes').delete().eq('id', id);
+  }
+
+  // ─── Entretiens (§5.3.5) ─────────────────────────────────────────────────
+
+  Future<List<Interview>> fetchInterviews({String? applicationId}) async {
+    var query = _client.from('interviews').select();
+    if (applicationId != null) {
+      query = query.eq('application_id', applicationId);
+    }
+    final data = await query.order('scheduled_at', ascending: false);
+    return data.map(Interview.fromJson).toList();
+  }
+
+  Future<String> scheduleInterview(Interview interview) async {
+    try {
+      final row = await _client
+          .from('interviews')
+          .insert({
+            ...interview.toWritableJson(),
+            'organization_id': await _requireOrganizationId(),
+            'application_id': interview.applicationId,
+            'created_by': _client.auth.currentUser?.id,
+          })
+          .select('id')
+          .single();
+      return row['id'] as String;
+    } on PostgrestException catch (e) {
+      throw ApplicationException(_translateApplicationError(e));
+    }
+  }
+
+  Future<void> updateInterview(String id, Interview interview) async {
+    try {
+      await _client
+          .from('interviews')
+          .update({
+            ...interview.toWritableJson(),
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', id);
+    } on PostgrestException catch (e) {
+      throw ApplicationException(_translateApplicationError(e));
+    }
+  }
+
+  String _translateApplicationError(PostgrestException e) {
+    final message = e.message;
+    if (message.contains('applications_candidate_id_job_offer_id_key')) {
+      return 'Ce candidat a déjà postulé à cette offre.';
+    }
+    if (message.contains('Étape de pipeline étrangère')) {
+      return 'Cette étape appartient à une autre organisation.';
+    }
+    if (message.contains('application_notes_rating_check')) {
+      return 'La note doit être comprise entre 1 et 5.';
+    }
+    if (message.contains('pipeline_won_is_terminal')) {
+      return 'Une étape de succès doit être une étape de sortie.';
+    }
+    if (e.code == '42501') {
+      return 'Action non autorisée pour votre rôle.';
+    }
+    return 'Erreur : $message';
+  }
+
+  // ─── Reporting et pilotage (§5.4) ────────────────────────────────────────
+
+  /// Synthèse du pilotage en un seul appel.
+  ///
+  /// Charger sept indicateurs séparément, c'est sept allers-retours réseau
+  /// à l'ouverture d'un tableau de bord.
+  Future<DashboardSummary> fetchDashboardSummary() async {
+    final data = await _client.rpc('hr_dashboard_summary');
+    return DashboardSummary.fromJson(data as Map<String, dynamic>);
+  }
+
+  Future<List<TimeToHireMetric>> fetchTimeToHire() async {
+    final data = await _client
+        .from('v_hr_time_to_hire')
+        .select()
+        .order('month', ascending: false);
+    return data.map(TimeToHireMetric.fromJson).toList();
+  }
+
+  Future<List<FunnelStep>> fetchFunnel() async {
+    final data = await _client
+        .from('v_hr_funnel')
+        .select()
+        .order('position', ascending: true);
+    return data.map(FunnelStep.fromJson).toList();
+  }
+
+  Future<List<SourceMetric>> fetchSourceMetrics() async {
+    final data = await _client
+        .from('v_hr_sources')
+        .select()
+        .order('total', ascending: false);
+    return data.map(SourceMetric.fromJson).toList();
+  }
+
+  Future<List<ArchiveVolumeMetric>> fetchArchiveVolume() async {
+    final data = await _client
+        .from('v_archive_volume')
+        .select()
+        .order('month', ascending: false);
+    return data.map(ArchiveVolumeMetric.fromJson).toList();
+  }
+
+  Future<RetentionCompliance> fetchRetentionCompliance() async {
+    final data = await _client
+        .from('v_retention_compliance')
+        .select()
+        .maybeSingle();
+    // Aucune ligne signifie aucune archive : un parc vide n'est pas un
+    // parc non conforme.
+    return data == null
+        ? const RetentionCompliance.empty()
+        : RetentionCompliance.fromJson(data);
   }
 
   // ─── Subscriptions ───────────────────────────────────────────────────────
@@ -541,7 +1154,7 @@ class SupabaseService {
 
       if (data.isEmpty) return const SubscriptionInfo(history: []);
 
-      final history = (data as List).map((m) {
+      final history = data.map((m) {
         final planData = m['subscription_plans'] as Map<String, dynamic>? ?? {};
         m['plan_name'] = planData['name'];
         return SubscriptionTransaction.fromJson(m);
@@ -552,7 +1165,8 @@ class SupabaseService {
       SubscriptionPlan? activePlan;
       if (active != null) {
         final activeRow = data.firstWhere((m) => m['id'] == active.id);
-        activePlan = SubscriptionPlan.fromJson(activeRow['subscription_plans']);
+        final planRow = activeRow['subscription_plans'] as Map<String, dynamic>?;
+        if (planRow != null) activePlan = SubscriptionPlan.fromJson(planRow);
       }
 
       return SubscriptionInfo(
@@ -571,7 +1185,7 @@ class SupabaseService {
         .select()
         .eq('is_active', true)
         .order('sort_order', ascending: true);
-    return (data as List).map((m) => SubscriptionPlan.fromJson(m)).toList();
+    return data.map(SubscriptionPlan.fromJson).toList();
   }
 
   // ─── Mappers ─────────────────────────────────────────────────────────────
@@ -585,10 +1199,7 @@ class SupabaseService {
       avatarUrl: m['avatar_url'] as String?,
       password: '', // Non exposé — géré par Supabase Auth
       jobTitle: m['job_title'] as String? ?? '',
-      role: UserRole.values.firstWhere(
-        (r) => r.name == m['role'],
-        orElse: () => UserRole.employe,
-      ),
+      role: UserRole.fromName(m['role'] as String?),
       isActive: m['is_active'] as bool? ?? true,
       organizationId: m['organization_id'] as String? ?? '',
       createdAt: DateTime.parse(m['created_at'] as String),
@@ -603,21 +1214,28 @@ class SupabaseService {
   }
 
   DailyArchive _mapArchive(Map<String, dynamic> m) {
+    DateTime? parse(Object? v) =>
+        v == null ? null : DateTime.tryParse(v as String);
+
     return DailyArchive(
       id: m['id'] as String,
-      employeeId: m['employee_id'] as String,
-      employeeName: m['employee_name'] as String,
+      employeeId: m['employee_id'] as String? ?? '',
+      employeeName: m['employee_name'] as String? ?? '',
       jobTitle: m['job_title'] as String? ?? '',
       archiveDate: DateTime.parse(m['archive_date'] as String),
-      title: m['title'] as String,
+      title: m['title'] as String? ?? '',
       summary: m['summary'] as String? ?? '',
       category: m['category'] as String? ?? '',
+      categoryId: m['category_id'] as String?,
+      documentTypeId: m['document_type_id'] as String?,
+      keywords: (m['keywords'] as List?)?.cast<String>() ?? const [],
       documentCount: m['document_count'] as int? ?? 0,
       physicalLocation: m['physical_location'] as String? ?? '',
       submittedAt: DateTime.parse(m['submitted_at'] as String),
-      deletedAt: m['deleted_at'] != null
-          ? DateTime.parse(m['deleted_at'] as String)
-          : null,
+      deletedAt: parse(m['deleted_at']),
+      legalHold: m['legal_hold'] as bool? ?? false,
+      retentionUntil: parse(m['retention_until']),
+      purgedAt: parse(m['purged_at']),
       files: _parseDocuments(m['documents']),
     );
   }
@@ -685,4 +1303,59 @@ class SupabaseService {
     }
     return message;
   }
+}
+
+/// Type MIME déduit de l'extension.
+///
+/// Storage le déduit sinon du nom de fichier, ce qui donne
+/// `application/octet-stream` pour tout ce qu'il ne reconnaît pas — et le
+/// navigateur propose alors un téléchargement là où un aperçu suffirait.
+String mimeTypeFor(String extension) {
+  switch (extension.toLowerCase()) {
+    case 'pdf':
+      return 'application/pdf';
+    case 'png':
+      return 'image/png';
+    case 'jpg':
+    case 'jpeg':
+      return 'image/jpeg';
+    case 'webp':
+      return 'image/webp';
+    case 'gif':
+      return 'image/gif';
+    case 'txt':
+      return 'text/plain; charset=utf-8';
+    case 'csv':
+      return 'text/csv; charset=utf-8';
+    case 'doc':
+      return 'application/msword';
+    case 'docx':
+      return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    case 'xls':
+      return 'application/vnd.ms-excel';
+    case 'xlsx':
+      return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    case 'zip':
+      return 'application/zip';
+    default:
+      return 'application/octet-stream';
+  }
+}
+
+/// Erreur métier sur une offre d'emploi, déjà traduite pour l'utilisateur.
+class JobOfferException implements Exception {
+  final String message;
+  const JobOfferException(this.message);
+
+  @override
+  String toString() => message;
+}
+
+/// Erreur métier sur une candidature, déjà traduite pour l'utilisateur.
+class ApplicationException implements Exception {
+  final String message;
+  const ApplicationException(this.message);
+
+  @override
+  String toString() => message;
 }

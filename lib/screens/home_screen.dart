@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../state/app_scope.dart';
 import '../state/app_state.dart';
 import '../state/candidates_state.dart';
 import '../state/logistics_state.dart';
@@ -9,10 +10,15 @@ import '../state/notifications_state.dart';
 import '../theme/app_theme.dart';
 import '../models/user_role.dart';
 import '../models/employee.dart';
+import '../models/fale_permission.dart';
 import '../widgets/role_based_nav.dart';
 import '../widgets/global_search_dialog.dart';
 import '../widgets/mesh_background.dart';
 import 'login_screen.dart';
+import 'archive_search_screen.dart';
+import 'auth/two_factor_setup_screen.dart';
+import 'applications/pipeline_board_screen.dart';
+import 'job_offers/job_offers_list_screen.dart';
 import 'submit_archive_screen.dart';
 import 'history_screen.dart';
 import 'candidates/candidates_list_screen.dart';
@@ -23,6 +29,7 @@ import 'dashboards/employee_dashboard_screen.dart';
 import 'dashboards/directeur_dashboard_screen.dart';
 import 'dashboards/rh_dashboard_screen.dart';
 import 'notifications_screen.dart';
+import 'reports/hr_metrics_screen.dart';
 import 'reports/reports_screen.dart';
 import '../state/subscription_state.dart';
 import 'subscription/subscription_screen.dart';
@@ -34,22 +41,7 @@ import 'trash_screen.dart';
 const double _kSidebarBreakpoint = 800;
 
 class HomeScreen extends StatefulWidget {
-  final AppState appState;
-  final CandidatesState candidatesState;
-  final LogisticsState logisticsState;
-  final ThemeState? themeState;
-  final NotificationsState? notificationsState;
-  final SubscriptionState? subscriptionState;
-
-  const HomeScreen({
-    super.key,
-    required this.appState,
-    required this.candidatesState,
-    required this.logisticsState,
-    this.themeState,
-    this.notificationsState,
-    this.subscriptionState,
-  });
+  const HomeScreen({super.key});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -58,23 +50,30 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _tabIndex = 0;
 
-  AppState get _appState => widget.appState;
-  CandidatesState get _candidatesState => widget.candidatesState;
-  LogisticsState get _logisticsState => widget.logisticsState;
-  late final NotificationsState _notificationsState;
-  late final ThemeState _themeState;
-  late final SubscriptionState _subscriptionState;
+  late AppScope _scope;
+  bool _bootstrapped = false;
+
+  AppState get _appState => _scope.appState;
+  CandidatesState get _candidatesState => _scope.candidatesState;
+  LogisticsState get _logisticsState => _scope.logisticsState;
+  NotificationsState get _notificationsState => _scope.notificationsState;
+  ThemeState get _themeState => _scope.themeState;
+  SubscriptionState get _subscriptionState => _scope.subscriptionState;
 
   @override
-  void initState() {
-    super.initState();
-    _notificationsState = widget.notificationsState ?? NotificationsState();
-    _themeState = widget.themeState ?? ThemeState();
-    _subscriptionState = widget.subscriptionState ?? SubscriptionState();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _scope = AppScope.of(context);
+
+    if (_bootstrapped) return;
+    _bootstrapped = true;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_appState.currentEmployee != null) {
-        _subscriptionState.load('org-creposa-default-id');
+      final employee = _appState.currentEmployee;
+      // L'organisation vient du compte connecté : c'est elle qui porte
+      // le cloisonnement, jamais une constante.
+      if (employee != null && employee.organizationId.isNotEmpty) {
+        _subscriptionState.load(employee.organizationId);
       }
     });
   }
@@ -98,7 +97,12 @@ class _HomeScreenState extends State<HomeScreen> {
         final role = emp.role;
         final navItems = RoleBasedNavUtils.itemsForRole(role);
         final isDark = Theme.of(context).brightness == Brightness.dark;
-        final safeIndex = _tabIndex < navItems.length ? _tabIndex : 0;
+        // Les index des items sont déclarés, pas positionnels : depuis que
+        // `itemsForRole` filtre par droit, comparer à `navItems.length`
+        // laisserait passer un index qui ne correspond à aucun onglet.
+        final safeIndex = navItems.any((i) => i.index == _tabIndex)
+            ? _tabIndex
+            : (navItems.isEmpty ? 0 : navItems.first.index);
         final unreadNotifs = _notificationsState.unreadCount(
           userId: emp.id,
           role: role,
@@ -219,6 +223,36 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             onPressed: _openGlobalSearch,
           ),
+        // Recherche avancée : interroge l'index plein texte serveur, là où
+        // la recherche globale ne filtre que ce qui est déjà chargé.
+        IconButton(
+          tooltip: 'Recherche avancée dans les archives',
+          icon: Icon(
+            Icons.manage_search_rounded,
+            color: isDark ? kDarkTextPrimary : kTextPrimary,
+            size: 22,
+          ),
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ArchiveSearchScreen(appState: _appState),
+            ),
+          ),
+        ),
+        // Pilotage : indicateurs calculés par vues SQL (§5.4).
+        if (emp.can(FalePermission.viewReports))
+          IconButton(
+            tooltip: 'Pilotage RH',
+            icon: Icon(
+              Icons.query_stats_rounded,
+              color: isDark ? kDarkTextPrimary : kTextPrimary,
+              size: 21,
+            ),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const HrMetricsScreen()),
+            ),
+          ),
         // Rapports & Exports
         IconButton(
           tooltip: 'Rapports & Exports',
@@ -252,7 +286,7 @@ class _HomeScreenState extends State<HomeScreen> {
               MaterialPageRoute(
                 builder: (_) => SubscriptionScreen(
                   subscriptionState: _subscriptionState,
-                  organizationId: 'org-creposa-default-id',
+                  organizationId: emp.organizationId,
                 ),
               ),
             ),
@@ -449,6 +483,10 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildBody(UserRole role, int index) {
     Widget content;
     switch (role) {
+      // Le super administrateur voit la console d'administration d'une
+      // organisation ; sa console d'exploitation multi-entreprises est un
+      // écran distinct, encore à construire.
+      case UserRole.superAdmin:
       case UserRole.admin:
         content = _adminBody(index);
         break;
@@ -532,7 +570,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // ── RH : Dashboard | Candidats | Archives | Profil ────────────────────────
+  // ── RH : Dashboard | Offres | Candidats | Archives | Profil ──────────────
   Widget _rhBody(int index) {
     final emp = _appState.currentEmployee!;
     switch (index) {
@@ -542,14 +580,19 @@ class _HomeScreenState extends State<HomeScreen> {
           candidatesState: _candidatesState,
         );
       case 1:
-        return CandidatesListScreen(
-          candidatesState: _candidatesState,
-          currentUserName: emp.fullName,
-          canEdit: true,
+        return JobOffersListScreen(
+          appState: _appState,
+          offersState: _scope.jobOffersState,
         );
       case 2:
-        return HistoryScreen(appState: _appState, showAll: true);
+        return PipelineBoardScreen(
+          appState: _appState,
+          applicationsState: _scope.applicationsState,
+          offersState: _scope.jobOffersState,
+        );
       case 3:
+        return HistoryScreen(appState: _appState, showAll: true);
+      case 4:
         return _buildProfileTab(emp);
       default:
         return const SizedBox.shrink();
@@ -766,8 +809,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     subtitle: 'Traçabilité des actions administratives',
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (_) => const AuditLogsScreen(
-                          organizationId: 'org-creposa-default-id',
+                        builder: (_) => AuditLogsScreen(
+                          organizationId: emp.organizationId,
                         ),
                       ),
                     ),
@@ -775,6 +818,22 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(height: 10),
                 ],
+
+                // Double authentification — ouverte à tous les rôles : c'est
+                // le compte de chacun qu'elle protège (§5.5.3).
+                _profileOptionCard(
+                  icon: Icons.verified_user_outlined,
+                  iconColor: kPrimaryColor,
+                  title: 'Double authentification',
+                  subtitle: 'Protéger votre compte par un second facteur',
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const TwoFactorSetupScreen(),
+                    ),
+                  ),
+                  isDark: isDark,
+                ),
+                const SizedBox(height: 10),
 
                 if (emp.role == UserRole.admin ||
                     emp.role == UserRole.directeurAdministratif) ...[

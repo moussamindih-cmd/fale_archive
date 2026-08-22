@@ -6,6 +6,7 @@ import '../theme/app_theme.dart';
 import '../models/daily_archive.dart';
 import '../models/user_role.dart';
 import '../widgets/document_preview.dart';
+import 'document_versions_screen.dart';
 
 class HistoryScreen extends StatefulWidget {
   final AppState appState;
@@ -357,6 +358,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
           onTap: () {
             DocumentPreviewSheet.show(context, arc: arc);
           },
+          onLongPress: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => DocumentVersionsScreen(archive: arc),
+            ),
+          ),
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(

@@ -2,11 +2,13 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/employee.dart';
+import '../models/archive_category.dart';
 import '../models/daily_archive.dart';
 import '../models/attached_file.dart';
 import '../models/user_role.dart';
 import '../models/action_history_entry.dart';
 import '../models/subscription.dart';
+import '../services/retention_service.dart';
 import '../services/supabase_service.dart';
 
 class AppState extends ChangeNotifier {
@@ -55,6 +57,14 @@ class AppState extends ChangeNotifier {
       // Fallback silencieux
     }
     try {
+      _categories = await _supabase.fetchCategories();
+      _documentTypes = await _supabase.fetchDocumentTypes();
+    } catch (e) {
+      // La taxonomie n'est pas indispensable au démarrage : sans elle, le
+      // dépôt retombe sur la catégorie déduite du poste.
+      debugPrint('Taxonomie documentaire indisponible : $e');
+    }
+    try {
       final logs = await _supabase.fetchActivityLog();
       _activityLog
         ..clear()
@@ -79,6 +89,41 @@ class AppState extends ChangeNotifier {
   List<Employee> get employees =>
       List.unmodifiable(_employees.where((e) => e.isActive));
   List<Employee> get allEmployees => List.unmodifiable(_employees);
+
+  // ─── Taxonomie documentaire (§5.1.2 / §5.1.4) ────────────────────────────
+  List<ArchiveCategory> _categories = [];
+  List<RetentionRule> _documentTypes = [];
+
+  /// Catégories de classement de l'organisation.
+  List<ArchiveCategory> get categories => List.unmodifiable(_categories);
+
+  /// Types de documents — chacun porte sa durée légale de conservation.
+  List<RetentionRule> get documentTypes => List.unmodifiable(_documentTypes);
+
+  ArchiveCategory? categoryById(String? id) {
+    if (id == null) return null;
+    for (final c in _categories) {
+      if (c.id == id) return c;
+    }
+    return null;
+  }
+
+  RetentionRule? documentTypeById(String? id) {
+    if (id == null) return null;
+    for (final t in _documentTypes) {
+      if (t.id == id) return t;
+    }
+    return null;
+  }
+
+  /// Évalue une archive au regard de sa règle de conservation (§5.1.4).
+  RetentionAssessment retentionOf(DailyArchive archive) {
+    return RetentionService.evaluate(
+      archivedAt: archive.archiveDate,
+      rule: documentTypeById(archive.documentTypeId),
+      legalHold: archive.legalHold,
+    );
+  }
 
   // ─── Archives store ──────────────────────────────────────────────────────
   List<DailyArchive> _allArchives = [];
@@ -379,10 +424,28 @@ class AppState extends ChangeNotifier {
     required String newPassword,
   }) async {
     if (_currentEmployee == null) return 'Aucun utilisateur connecté.';
-    // Note: Avec Supabase, on ne vérifie pas l'ancien mdp localement. Supabase gère l'updateAuth.
-    if (newPassword.length < 6) {
-      return 'Le nouveau mot de passe doit comporter au moins 6 caractères.';
+    if (newPassword.length < 8) {
+      return 'Le nouveau mot de passe doit comporter au moins 8 caractères.';
     }
+    if (newPassword == oldPassword) {
+      return 'Le nouveau mot de passe doit être différent de l\'ancien.';
+    }
+
+    // L'ancien mot de passe n'était pas vérifié : une session laissée
+    // ouverte sur un poste partagé suffisait à changer le mot de passe et à
+    // s'approprier le compte. Supabase n'expose pas de « vérifier ce mot de
+    // passe », mais une reconnexion silencieuse fait exactement cela.
+    try {
+      await Supabase.instance.client.auth.signInWithPassword(
+        email: _currentEmployee!.email,
+        password: oldPassword,
+      );
+    } on AuthException {
+      return 'Mot de passe actuel incorrect.';
+    } catch (e) {
+      return 'Vérification du mot de passe actuel impossible : $e';
+    }
+
     try {
       await Supabase.instance.client.auth.updateUser(
         UserAttributes(password: newPassword),
@@ -407,6 +470,10 @@ class AppState extends ChangeNotifier {
     required int documentCount,
     List<AttachedFile> files = const [],
     String physicalLocation = '',
+    String? categoryId,
+    String? categoryLabel,
+    String? documentTypeId,
+    List<String> keywords = const [],
   }) async {
     if (_currentEmployee == null) return 'Aucun utilisateur connecté.';
     final archiveId = 'arc_${DateTime.now().millisecondsSinceEpoch}';
@@ -427,7 +494,12 @@ class AppState extends ChangeNotifier {
       archiveDate: DateTime.now(),
       title: title,
       summary: summary,
-      category: _currentEmployee!.archiveCategory,
+      // La catégorie déduite du poste n'est plus qu'un repli : elle sert
+      // de valeur par défaut quand l'utilisateur n'a rien choisi (§5.1.2).
+      category: categoryLabel ?? _currentEmployee!.archiveCategory,
+      categoryId: categoryId,
+      documentTypeId: documentTypeId,
+      keywords: keywords,
       documentCount: files.isNotEmpty ? files.length : documentCount,
       files: uploadedFiles,
       physicalLocation: physicalLocation.trim(),
@@ -440,6 +512,103 @@ class AppState extends ChangeNotifier {
       userName: _currentEmployee!.fullName,
       action: 'ARCHIVE_SUBMIT',
       details: 'Archive journalière soumise : $title.',
+    );
+    notifyListeners();
+    return null;
+  }
+
+  /// Modifier une archive déjà déposée (§5.1.6).
+  ///
+  /// N'existait pas : une archive soumise était définitivement figée, ce qui
+  /// interdisait aussi bien la correction d'une faute de saisie que
+  /// l'historique des modifications demandé par le cahier des charges.
+  ///
+  /// Chaque nouvelle pièce est enregistrée comme une révision : l'ancienne
+  /// n'est jamais écrasée dans le stockage.
+  Future<String?> updateArchive({
+    required String id,
+    String? title,
+    String? summary,
+    String? categoryId,
+    String? categoryLabel,
+    String? documentTypeId,
+    List<String>? keywords,
+    String? physicalLocation,
+    bool? legalHold,
+    List<AttachedFile>? newFiles,
+    String? versionComment,
+  }) async {
+    if (_currentEmployee == null) return 'Aucun utilisateur connecté.';
+
+    final index = _allArchives.indexWhere((a) => a.id == id);
+    if (index == -1) return 'Archive introuvable.';
+    final existing = _allArchives[index];
+
+    if (existing.isPurged) {
+      return 'Cette archive a été détruite au terme de sa durée légale de '
+          'conservation : elle ne peut plus être modifiée.';
+    }
+
+    // Les nouvelles pièces sont envoyées puis versionnées ; les anciennes
+    // restent en place et restent consultables dans l'historique.
+    var files = existing.files;
+    if (newFiles != null && newFiles.isNotEmpty) {
+      final uploaded = await Future.wait(
+        newFiles.map(
+          (f) => SupabaseService.instance.uploadDocument(
+            module: 'archives',
+            entityId: id,
+            file: f,
+          ),
+        ),
+      );
+      for (final file in uploaded) {
+        final versionError = await SupabaseService.instance.addDocumentVersion(
+          archiveId: id,
+          file: file,
+          comment: versionComment,
+        );
+        // Un contenu identique à la révision précédente est refusé par la
+        // base : ce n'est pas une erreur bloquante, la pièce est déjà là.
+        if (versionError != null) {
+          debugPrint('Version non enregistrée pour ${file.name} : $versionError');
+        }
+      }
+      files = [...existing.files, ...uploaded];
+    }
+
+    final error = await SupabaseService.instance.updateArchive(
+      id: id,
+      title: title,
+      summary: summary,
+      category: categoryLabel,
+      categoryId: categoryId,
+      documentTypeId: documentTypeId,
+      keywords: keywords,
+      physicalLocation: physicalLocation,
+      documentCount: files.length,
+      legalHold: legalHold,
+      files: files == existing.files ? null : files,
+    );
+    if (error != null) return error;
+
+    _allArchives[index] = existing.copyWith(
+      title: title,
+      summary: summary,
+      category: categoryLabel,
+      categoryId: categoryId,
+      documentTypeId: documentTypeId,
+      keywords: keywords,
+      physicalLocation: physicalLocation,
+      legalHold: legalHold,
+      files: files,
+      documentCount: files.length,
+    );
+
+    _logActivity(
+      userName: _currentEmployee!.fullName,
+      action: 'UPDATE',
+      details: 'Archive modifiée : ${_allArchives[index].title}.',
     );
     notifyListeners();
     return null;

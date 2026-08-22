@@ -115,8 +115,9 @@ class CandidatesState extends ChangeNotifier {
             c.rhNotes.toLowerCase().contains(kw);
         if (!match) return false;
       }
-      if (fromDate != null && c.applicationDate.isBefore(fromDate))
+      if (fromDate != null && c.applicationDate.isBefore(fromDate)) {
         return false;
+      }
       if (toDate != null && c.applicationDate.isAfter(toDate)) return false;
       return true;
     }).toList()..sort((a, b) => b.applicationDate.compareTo(a.applicationDate));

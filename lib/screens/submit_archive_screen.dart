@@ -6,6 +6,7 @@ import '../state/app_state.dart';
 import '../models/attached_file.dart';
 import '../theme/app_theme.dart';
 import '../services/document_scanner_service.dart';
+import '../services/retention_service.dart';
 import '../widgets/centered_form_body.dart';
 import '../widgets/glass_form_card.dart';
 import '../widgets/mesh_background.dart';
@@ -23,6 +24,16 @@ class _SubmitArchiveScreenState extends State<SubmitArchiveScreen> {
   late TextEditingController _titleCtrl;
   final _summaryCtrl = TextEditingController();
   final _locationCtrl = TextEditingController();
+  final _keywordCtrl = TextEditingController();
+
+  /// Classement choisi (§5.1.2). Null tant que rien n'est sélectionné : le
+  /// dépôt retombe alors sur la catégorie déduite du poste.
+  String? _categoryId;
+
+  /// Type de document — porte la durée légale de conservation (§5.1.4).
+  String? _documentTypeId;
+
+  final List<String> _keywords = [];
   bool _isLoading = false;
   bool _isPickingFiles = false;
 
@@ -58,6 +69,7 @@ class _SubmitArchiveScreenState extends State<SubmitArchiveScreen> {
     _titleCtrl.dispose();
     _summaryCtrl.dispose();
     _locationCtrl.dispose();
+    _keywordCtrl.dispose();
     super.dispose();
   }
 
@@ -110,6 +122,20 @@ class _SubmitArchiveScreenState extends State<SubmitArchiveScreen> {
     }
   }
 
+  void _addKeyword([String? raw]) {
+    final value = (raw ?? _keywordCtrl.text).trim().toLowerCase();
+    if (value.isEmpty) return;
+    // Un doublon n'apporte rien à l'index de recherche.
+    if (_keywords.contains(value)) {
+      _keywordCtrl.clear();
+      return;
+    }
+    setState(() {
+      _keywords.add(value);
+      _keywordCtrl.clear();
+    });
+  }
+
   Future<void> _handleSubmit() async {
     if (!_formKey.currentState!.validate()) return;
     if (_attachedFiles.isEmpty) {
@@ -130,12 +156,16 @@ class _SubmitArchiveScreenState extends State<SubmitArchiveScreen> {
     }
     setState(() => _isLoading = true);
     await Future.delayed(const Duration(milliseconds: 600));
-    widget.appState.submitArchive(
+    await widget.appState.submitArchive(
       title: _titleCtrl.text.trim(),
       summary: _summaryCtrl.text.trim(),
       documentCount: _attachedFiles.length,
       files: List.from(_attachedFiles),
       physicalLocation: _locationCtrl.text.trim(),
+      categoryId: _categoryId,
+      categoryLabel: widget.appState.categoryById(_categoryId)?.label,
+      documentTypeId: _documentTypeId,
+      keywords: List.from(_keywords),
     );
     if (!mounted) return;
     Navigator.of(context).pop();
@@ -359,6 +389,21 @@ class _SubmitArchiveScreenState extends State<SubmitArchiveScreen> {
                                   'Décrivez les documents traités, pièces versées...',
                             ),
                           ),
+
+                          const SizedBox(height: 18),
+                          _label('Classement', isDark),
+                          const SizedBox(height: 8),
+                          _buildCategoryPicker(isDark),
+
+                          const SizedBox(height: 18),
+                          _label('Type de document', isDark),
+                          const SizedBox(height: 8),
+                          _buildDocumentTypePicker(isDark),
+
+                          const SizedBox(height: 18),
+                          _label('Mots-clés (Optionnel)', isDark),
+                          const SizedBox(height: 8),
+                          _buildKeywordsField(isDark),
 
                           const SizedBox(height: 18),
                           _label('Emplacement physique (Optionnel)', isDark),
@@ -718,6 +763,158 @@ class _SubmitArchiveScreenState extends State<SubmitArchiveScreen> {
       default:
         return const Color(0xFF475569);
     }
+  }
+
+  // ── Classement et conservation (§5.1.2 / §5.1.4) ─────────────────────────
+
+  Widget _buildCategoryPicker(bool isDark) {
+    final categories = widget.appState.categories;
+    if (categories.isEmpty) {
+      // Aucune taxonomie configurée : on ne bloque pas le dépôt, la
+      // catégorie déduite du poste sert de repli.
+      return _hint(
+        'Aucun plan de classement configuré — la catégorie « '
+        '${widget.appState.currentEmployee?.archiveCategory ?? ''} » '
+        'sera appliquée.',
+        isDark,
+      );
+    }
+    return DropdownButtonFormField<String>(
+      initialValue: _categoryId,
+      isExpanded: true,
+      decoration: const InputDecoration(
+        hintText: 'Choisir une catégorie',
+        prefixIcon: Icon(Icons.folder_outlined, size: 20),
+      ),
+      items: [
+        for (final c in categories)
+          DropdownMenuItem(value: c.id, child: Text(c.label)),
+      ],
+      onChanged: (v) => setState(() => _categoryId = v),
+    );
+  }
+
+  Widget _buildDocumentTypePicker(bool isDark) {
+    final types = widget.appState.documentTypes;
+    if (types.isEmpty) {
+      return _hint(
+        'Aucun type de document configuré — aucune durée de conservation '
+        'ne sera appliquée.',
+        isDark,
+      );
+    }
+    final selected = widget.appState.documentTypeById(_documentTypeId);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        DropdownButtonFormField<String>(
+          initialValue: _documentTypeId,
+          isExpanded: true,
+          decoration: const InputDecoration(
+            hintText: 'Choisir un type',
+            prefixIcon: Icon(Icons.gavel_rounded, size: 20),
+          ),
+          items: [
+            for (final t in types)
+              DropdownMenuItem(value: t.id, child: Text(t.label)),
+          ],
+          onChanged: (v) => setState(() => _documentTypeId = v),
+        ),
+        // Rendre la conséquence visible : le choix engage une durée légale,
+        // il ne doit pas être opaque au moment de la saisie.
+        if (selected != null) ...[
+          const SizedBox(height: 8),
+          _retentionNotice(selected, isDark),
+        ],
+      ],
+    );
+  }
+
+  Widget _retentionNotice(RetentionRule rule, bool isDark) {
+    final due = RetentionService.dueDateFor(DateTime.now(), rule.retentionYears);
+    final label = switch (rule.action) {
+      RetentionAction.destroy => 'destruction automatique',
+      RetentionAction.archive => 'versement en archive définitive',
+      RetentionAction.review => 'revue manuelle',
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: (isDark ? kInfoDarkBg : kInfoBg).withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: kInfo.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.schedule_rounded, size: 16, color: kInfo),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Conservation ${rule.retentionYears} ans — échéance le '
+              '${DateFormat('dd/MM/yyyy').format(due)}, puis $label.'
+              '${rule.legalBasis != null ? '\nBase légale : ${rule.legalBasis}' : ''}',
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                height: 1.4,
+                color: isDark ? kDarkTextSecondary : kTextSecondary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildKeywordsField(bool isDark) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextFormField(
+          controller: _keywordCtrl,
+          textInputAction: TextInputAction.done,
+          decoration: InputDecoration(
+            hintText: 'Saisir un mot-clé puis valider',
+            prefixIcon: const Icon(Icons.sell_outlined, size: 20),
+            suffixIcon: IconButton(
+              icon: const Icon(Icons.add_rounded, size: 20),
+              tooltip: 'Ajouter le mot-clé',
+              onPressed: _addKeyword,
+            ),
+          ),
+          onFieldSubmitted: _addKeyword,
+        ),
+        if (_keywords.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final k in _keywords)
+                Chip(
+                  label: Text(k),
+                  labelStyle: GoogleFonts.ibmPlexMono(fontSize: 12),
+                  onDeleted: () => setState(() => _keywords.remove(k)),
+                  deleteIcon: const Icon(Icons.close_rounded, size: 15),
+                  visualDensity: VisualDensity.compact,
+                ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _hint(String message, bool isDark) {
+    return Text(
+      message,
+      style: GoogleFonts.inter(
+        fontSize: 12,
+        height: 1.4,
+        fontStyle: FontStyle.italic,
+        color: isDark ? kDarkTextMuted : kTextMuted,
+      ),
+    );
   }
 
   Widget _label(String text, bool isDark) => Text(

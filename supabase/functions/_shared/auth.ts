@@ -52,10 +52,18 @@ export async function verifyAuth(
     .eq('is_active', true)
     .maybeSingle();
 
-  const organizationId = emp?.organization_id ?? 'org-creposa-default-id';
-  const role = emp?.role ?? 'employe';
+  // Un JWT valide ne suffit pas : sans fiche employé active, il n'y a ni
+  // organisation ni rôle à appliquer. Retomber sur un tenant fictif
+  // réadmettait les comptes désactivés et rattachait leurs écritures à une
+  // organisation inexistante — on rejette.
+  if (!emp?.organization_id) {
+    throw jsonResponse({ error: 'Compte inactif ou non rattaché' }, 401);
+  }
 
-  if (requireAdmin && role !== 'admin') {
+  const organizationId = emp.organization_id as string;
+  const role = (emp.role as string | null) ?? 'employe';
+
+  if (requireAdmin && role !== 'admin' && role !== 'superAdmin') {
     throw jsonResponse({ error: 'Admin role required' }, 403);
   }
 
@@ -87,7 +95,22 @@ export async function verifyWebhookSignature(
     .map(b => b.toString(16).padStart(2, '0'))
     .join('');
 
-  return expected === signatureHeader;
+  return timingSafeEqual(expected, signatureHeader);
+}
+
+/// Comparaison à durée constante.
+///
+/// `===` s'arrête au premier caractère différent : le temps de réponse
+/// renseigne alors sur le nombre de caractères corrects, ce qui permet de
+/// reconstituer une signature valide octet par octet. On compare donc toujours
+/// la totalité de la chaîne.
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return diff === 0;
 }
 
 export function jsonResponse(data: unknown, status = 200): Response {

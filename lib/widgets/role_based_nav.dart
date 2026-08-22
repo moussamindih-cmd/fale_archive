@@ -30,8 +30,25 @@ class NavItem {
 }
 
 class RoleBasedNavUtils {
+  /// Items de navigation du rôle, filtrés par les droits réellement détenus.
+  ///
+  /// `NavItem.requiredPermission` existait déjà mais n'était ni renseigné ni
+  /// lu : le champ était mort et le RBAC de navigation purement décoratif.
+  /// Les index restent ceux déclarés, pour que `_buildBody` continue de s'y
+  /// retrouver après filtrage.
   static List<NavItem> itemsForRole(UserRole role) {
+    return _declaredItemsFor(role)
+        .where((item) =>
+            item.requiredPermission == null ||
+            role.hasPermission(item.requiredPermission!))
+        .toList();
+  }
+
+  static List<NavItem> _declaredItemsFor(UserRole role) {
     switch (role) {
+      // Même barre de navigation que l'administrateur : le super
+      // administrateur travaille dans l'organisation qu'il a sélectionnée.
+      case UserRole.superAdmin:
       case UserRole.admin:
         return const [
           NavItem(
@@ -110,18 +127,27 @@ class RoleBasedNavUtils {
           ),
           NavItem(
             index: 1,
-            icon: Icons.person_search_outlined,
-            selectedIcon: Icons.person_search_rounded,
-            label: 'Candidats',
+            icon: Icons.work_outline_rounded,
+            selectedIcon: Icons.work_rounded,
+            label: 'Offres',
+            requiredPermission: FalePermission.viewJobOffers,
           ),
           NavItem(
             index: 2,
-            icon: Icons.history_outlined,
-            selectedIcon: Icons.history_rounded,
-            label: 'Archives',
+            icon: Icons.view_kanban_outlined,
+            selectedIcon: Icons.view_kanban_rounded,
+            label: 'Pipeline',
+            requiredPermission: FalePermission.viewCandidates,
           ),
           NavItem(
             index: 3,
+            icon: Icons.history_outlined,
+            selectedIcon: Icons.history_rounded,
+            label: 'Archives',
+            requiredPermission: FalePermission.viewArchives,
+          ),
+          NavItem(
+            index: 4,
             icon: Icons.person_outline_rounded,
             selectedIcon: Icons.person_rounded,
             label: 'Profil',

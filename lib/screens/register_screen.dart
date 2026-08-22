@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import '../state/app_state.dart';
-import '../state/candidates_state.dart';
-import '../state/logistics_state.dart';
+import '../state/app_scope.dart';
 import '../theme/app_theme.dart';
 import 'home_screen.dart';
 import 'login_screen.dart';
@@ -17,16 +15,7 @@ const List<String> kJobTitles = [
 ];
 
 class RegisterScreen extends StatefulWidget {
-  final AppState appState;
-  final CandidatesState candidatesState;
-  final LogisticsState logisticsState;
-
-  const RegisterScreen({
-    super.key,
-    required this.appState,
-    required this.candidatesState,
-    required this.logisticsState,
-  });
+  const RegisterScreen({super.key});
 
   @override
   State<RegisterScreen> createState() => _RegisterScreenState();
@@ -66,8 +55,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
     setState(() { _isLoading = true; _errorMessage = null; });
+    final appState = AppScope.of(context).appState;
     await Future.delayed(const Duration(milliseconds: 600));
-    final error = await widget.appState.register(
+    final error = await appState.register(
       fullName: _nameCtrl.text,
       email: _emailCtrl.text,
       personalEmail: _personalEmailCtrl.text,
@@ -100,11 +90,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     } else {
       Navigator.of(context).pushReplacement(
         PageRouteBuilder(
-          pageBuilder: (_, __, ___) => HomeScreen(
-            appState: widget.appState,
-            candidatesState: widget.candidatesState,
-            logisticsState: widget.logisticsState,
-          ),
+          pageBuilder: (_, __, ___) => const HomeScreen(),
           transitionsBuilder: (_, animation, __, child) =>
               FadeTransition(opacity: animation, child: child),
           transitionDuration: const Duration(milliseconds: 300),

@@ -16,11 +16,12 @@ analyzer:
     - windows/**
     - macos/**
     - linux/**
-    # Arborescences non atteignables depuis lib/main.dart (aucun import entrant).
-    # Les fichiers restent en place, ils ne sont simplement plus analysés.
-    - lib/presentation/**
-    - lib/core/**
-    - lib/data/**
+  # Tout lib/ est analysé. Les arborescences mortes qui étaient exclues ici
+  # (lib/presentation, lib/core, lib/data) ont été supprimées — ne jamais
+  # remettre une exclusion pour faire taire l'analyseur sur du code vivant.
+  language:
+    strict-casts: true
+    strict-raw-types: true
 include: package:flutter_lints/flutter.yaml
 
 linter:

@@ -1,3 +1,4 @@
+import 'fale_permission.dart';
 import 'user_role.dart';
 
 // Employee model — représente un compte employé
@@ -53,8 +54,12 @@ class Employee {
     return fullName.substring(0, 1).toUpperCase();
   }
 
-  /// Vérifie si l'employé est un rôle de supervision (Admin, DA, RH)
-  bool get isSupervisor => role != UserRole.employe;
+  /// Vérifie si l'employé occupe un rôle de supervision (Admin, DA, RH).
+  bool get isSupervisor => role.isSupervisor;
+
+  /// Raccourci de vérification des droits — évite d'aller chercher la matrice
+  /// via `employee.role.hasPermission(...)` à chaque appel dans l'UI.
+  bool can(FalePermission permission) => role.hasPermission(permission);
 
   /// Libellé complet pour l'affichage (rôle + poste si applicable)
   String get displayRole {
@@ -116,10 +121,7 @@ class Employee {
       avatarUrl: json['avatarUrl'] as String?,
       password: json['password'] as String,
       jobTitle: json['jobTitle'] as String? ?? '',
-      role: UserRole.values.firstWhere(
-        (r) => r.name == json['role'],
-        orElse: () => UserRole.employe,
-      ),
+      role: UserRole.fromName(json['role'] as String?),
       isActive: json['isActive'] as bool? ?? true,
       organizationId: json['organizationId'] as String? ?? '',
       createdAt: DateTime.parse(json['createdAt'] as String),

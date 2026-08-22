@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:mesh_gradient/mesh_gradient.dart';
-import '../theme/app_theme.dart';
 
 class AnimatedMeshBackground extends StatelessWidget {
   final Widget child;
