@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import '../models/attached_file.dart';
 import '../models/daily_archive.dart';
 import '../theme/app_theme.dart';
 import '../screens/archive_viewer.dart';
 import '../services/supabase_service.dart';
+import '../services/archive_label_service.dart';
 
 /// Widget réutilisable pour afficher un aperçu de document attaché.
 class DocumentPreview extends StatelessWidget {
@@ -460,6 +462,91 @@ class DocumentPreviewSheet extends StatelessWidget {
                     ),
                     const SizedBox(height: 20),
                   ],
+
+                  Text(
+                    'Code QR de l\'archive',
+                    style: GoogleFonts.outfit(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: isDark ? kDarkTextPrimary : kTextPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: isDark ? kDarkCard : kSurfaceSubtle,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: isDark ? kDarkBorder : kBorderColor,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: QrImageView(
+                            data: ArchiveLabelService.qrPayloadFor(arc.id),
+                            size: 72,
+                            backgroundColor: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                arc.reference,
+                                style: GoogleFonts.outfit(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: isDark
+                                      ? kDarkTextPrimary
+                                      : kTextPrimary,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'À coller sur le rangement physique pour retrouver ce dossier en un scan.',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 11,
+                                  color: isDark ? kDarkTextMuted : kTextMuted,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              OutlinedButton.icon(
+                                onPressed: () =>
+                                    ArchiveLabelService.printLabel(arc),
+                                icon: const Icon(
+                                  Icons.print_outlined,
+                                  size: 16,
+                                ),
+                                label: const Text('Imprimer l\'étiquette'),
+                                style: OutlinedButton.styleFrom(
+                                  minimumSize: const Size(0, 34),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                  ),
+                                  visualDensity: VisualDensity.compact,
+                                  textStyle: GoogleFonts.outfit(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
 
                   Text(
                     'Pièces jointes (${arc.files.length})',

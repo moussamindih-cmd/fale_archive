@@ -20,7 +20,9 @@ class LocalStorageService {
 
   static SharedPreferences get prefs {
     if (_prefs == null) {
-      throw StateError('LocalStorageService must be initialized with init() first.');
+      throw StateError(
+        'LocalStorageService must be initialized with init() first.',
+      );
     }
     return _prefs!;
   }

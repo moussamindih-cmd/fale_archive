@@ -19,11 +19,15 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   void initState() {
     super.initState();
-    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1000));
-    _fadeAnim = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
-    _scaleAnim = Tween<double>(begin: 0.88, end: 1.0).animate(
-      CurvedAnimation(parent: _ctrl, curve: Curves.easeOutBack),
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
     );
+    _fadeAnim = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
+    _scaleAnim = Tween<double>(
+      begin: 0.88,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutBack));
     _ctrl.forward();
     Future.delayed(const Duration(milliseconds: 2000), () {
       if (mounted) {
@@ -91,7 +95,11 @@ class _SplashScreenState extends State<SplashScreen>
                       height: 88,
                       decoration: BoxDecoration(
                         gradient: const LinearGradient(
-                          colors: [Color(0xFF4F46E5), Color(0xFF6366F1), Color(0xFF06B6D4)],
+                          colors: [
+                            Color(0xFF4F46E5),
+                            Color(0xFF6366F1),
+                            Color(0xFF06B6D4),
+                          ],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
@@ -104,7 +112,11 @@ class _SplashScreenState extends State<SplashScreen>
                           ),
                         ],
                       ),
-                      child: const Icon(Icons.folder_special_rounded, color: Colors.white, size: 44),
+                      child: const Icon(
+                        Icons.folder_special_rounded,
+                        color: Colors.white,
+                        size: 44,
+                      ),
                     ),
                     const SizedBox(height: 28),
 
@@ -123,11 +135,16 @@ class _SplashScreenState extends State<SplashScreen>
 
                     // Pill Badge
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.14),
+                        ),
                       ),
                       child: Text(
                         'DOCUMENT MANAGEMENT SAAS',

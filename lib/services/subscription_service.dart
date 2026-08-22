@@ -26,8 +26,7 @@ class SubscriptionService {
   // ─── Statut de l'abonnement ───────────────────────────────────────────────
 
   /// Récupère l'état complet de l'abonnement de l'organisation
-  Future<SubscriptionInfo> getSubscriptionInfo(
-      String organizationId) async {
+  Future<SubscriptionInfo> getSubscriptionInfo(String organizationId) async {
     // Abonnement actif (vue active_subscriptions)
     final activeRows = await _client
         .from('active_subscriptions')
@@ -59,10 +58,7 @@ class SubscriptionService {
       return SubscriptionTransaction.fromJson(map);
     }).toList();
 
-    return SubscriptionInfo(
-      activeTransaction: active,
-      history: history,
-    );
+    return SubscriptionInfo(activeTransaction: active, history: history);
   }
 
   // ─── Initier un paiement ──────────────────────────────────────────────────
@@ -77,7 +73,9 @@ class SubscriptionService {
   }) async {
     try {
       final token = _client.auth.currentSession?.accessToken;
-      if (token == null) return (subscriptionId: null, error: 'Non authentifié');
+      if (token == null) {
+        return (subscriptionId: null, error: 'Non authentifié');
+      }
 
       final response = await _client.functions.invoke(
         'payment-initiate',

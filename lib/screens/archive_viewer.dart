@@ -28,7 +28,8 @@ class _ArchiveViewerState extends State<ArchiveViewer> {
     if (mounted) {
       setState(() {
         _isOcrScanning = false;
-        _ocrResult = "Texte extrait par l'IA :\n\n- Facture N° 4029\n- Montant : 450,00 €\n- Date : 19/08/2026\n\nCe document a été analysé avec succès par FALE AI Vision.";
+        _ocrResult =
+            "Texte extrait par l'IA :\n\n- Facture N° 4029\n- Montant : 450,00 €\n- Date : 19/08/2026\n\nCe document a été analysé avec succès par FALE AI Vision.";
       });
     }
   }
@@ -47,16 +48,24 @@ class _ArchiveViewerState extends State<ArchiveViewer> {
               tag: widget.heroTag,
               child: isImage && widget.file.bytes != null
                   ? PhotoView(
-                      imageProvider: MemoryImage(Uint8List.fromList(widget.file.bytes!)),
+                      imageProvider: MemoryImage(
+                        Uint8List.fromList(widget.file.bytes!),
+                      ),
                       minScale: PhotoViewComputedScale.contained,
                       maxScale: PhotoViewComputedScale.covered * 2,
-                      backgroundDecoration: const BoxDecoration(color: Colors.black),
+                      backgroundDecoration: const BoxDecoration(
+                        color: Colors.black,
+                      ),
                     )
                   : Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(Icons.picture_as_pdf_rounded, size: 80, color: Colors.white),
+                          const Icon(
+                            Icons.picture_as_pdf_rounded,
+                            size: 80,
+                            color: Colors.white,
+                          ),
                           const SizedBox(height: 16),
                           Text(
                             'Aperçu non disponible pour ${widget.file.name}',
@@ -81,7 +90,11 @@ class _ArchiveViewerState extends State<ArchiveViewer> {
                       const SizedBox(height: 16),
                       Text(
                         'Analyse IA en cours...',
-                        style: GoogleFonts.outfit(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                        style: GoogleFonts.outfit(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ).animate().fade().scale(),
                     ],
                   ),
@@ -95,37 +108,59 @@ class _ArchiveViewerState extends State<ArchiveViewer> {
               bottom: 40,
               left: 20,
               right: 20,
-              child: GlassContainer(
-                color: const Color(0x66000000),
-                borderRadius: 24,
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              child:
+                  GlassContainer(
+                    color: const Color(0x66000000),
+                    borderRadius: 24,
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Icon(Icons.auto_awesome, color: kAccentColor),
-                            const SizedBox(width: 8),
-                            Text('FALE AI Vision', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                            Row(
+                              children: [
+                                const Icon(
+                                  Icons.auto_awesome,
+                                  color: kAccentColor,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'FALE AI Vision',
+                                  style: GoogleFonts.outfit(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            IconButton(
+                              icon: const Icon(
+                                Icons.close,
+                                color: Colors.white,
+                              ),
+                              onPressed: () =>
+                                  setState(() => _ocrResult = null),
+                            ),
                           ],
                         ),
-                        IconButton(
-                          icon: const Icon(Icons.close, color: Colors.white),
-                          onPressed: () => setState(() => _ocrResult = null),
-                        )
+                        const SizedBox(height: 12),
+                        Text(
+                          _ocrResult!,
+                          style: GoogleFonts.outfit(
+                            color: Colors.white70,
+                            fontSize: 14,
+                          ),
+                        ),
                       ],
                     ),
-                    const SizedBox(height: 12),
-                    Text(
-                      _ocrResult!,
-                      style: GoogleFonts.outfit(color: Colors.white70, fontSize: 14),
-                    ),
-                  ],
-                ),
-              ).animate().slideY(begin: 1.0, end: 0.0, curve: Curves.easeOutBack),
+                  ).animate().slideY(
+                    begin: 1.0,
+                    end: 0.0,
+                    curve: Curves.easeOutBack,
+                  ),
             ),
 
           // App Bar Overlay
@@ -136,7 +171,12 @@ class _ArchiveViewerState extends State<ArchiveViewer> {
             child: GlassContainer(
               color: const Color(0x33000000),
               borderRadius: 0,
-              padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top, left: 16, right: 16, bottom: 16),
+              padding: EdgeInsets.only(
+                top: MediaQuery.of(context).padding.top,
+                left: 16,
+                right: 16,
+                bottom: 16,
+              ),
               child: Row(
                 children: [
                   IconButton(
@@ -147,7 +187,11 @@ class _ArchiveViewerState extends State<ArchiveViewer> {
                   Expanded(
                     child: Text(
                       widget.file.name,
-                      style: GoogleFonts.outfit(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                      style: GoogleFonts.outfit(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -159,7 +203,10 @@ class _ArchiveViewerState extends State<ArchiveViewer> {
                         foregroundColor: Colors.white,
                       ),
                       onPressed: _runOCR,
-                      icon: const Icon(Icons.document_scanner_rounded, size: 16),
+                      icon: const Icon(
+                        Icons.document_scanner_rounded,
+                        size: 16,
+                      ),
                       label: const Text('Scanner (IA)'),
                     ),
                 ],

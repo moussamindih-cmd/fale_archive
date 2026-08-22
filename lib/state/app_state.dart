@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:uuid/uuid.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/employee.dart';
 import '../models/daily_archive.dart';
@@ -8,6 +9,7 @@ import '../models/user_role.dart';
 import '../models/action_history_entry.dart';
 import '../models/subscription.dart';
 import '../services/supabase_service.dart';
+import '../services/error_reporting_service.dart';
 
 class AppState extends ChangeNotifier {
   // ─── Auth ────────────────────────────────────────────────────────────────
@@ -21,9 +23,12 @@ class AppState extends ChangeNotifier {
   bool _isLoading = false;
   bool get isLoading => _isLoading;
 
-  final SupabaseService _supabase = SupabaseService.instance;
+  final SupabaseService _supabase;
 
-  AppState() {
+  /// [supabaseService] est injectable pour les tests (mock) ; en usage
+  /// normal, le singleton [SupabaseService.instance] est utilisé.
+  AppState({SupabaseService? supabaseService})
+    : _supabase = supabaseService ?? SupabaseService.instance {
     _tryRestoreSession();
   }
 
@@ -51,24 +56,36 @@ class AppState extends ChangeNotifier {
       _allArchives = await _supabase.fetchAllArchives();
       _deletedArchives = await _supabase.fetchDeletedArchives();
       _employees = await _supabase.fetchAllEmployees();
-    } catch (_) {
-      // Fallback silencieux
+    } catch (e, stack) {
+      ErrorReportingService.instance.report(
+        e,
+        stack,
+        context: 'AppState._loadRemoteData(archives/employees)',
+      );
     }
     try {
       final logs = await _supabase.fetchActivityLog();
       _activityLog
         ..clear()
         ..addAll(logs);
-    } catch (_) {
-      // Fallback silencieux
+    } catch (e, stack) {
+      ErrorReportingService.instance.report(
+        e,
+        stack,
+        context: 'AppState._loadRemoteData(activityLog)',
+      );
     }
     if (_currentEmployee != null) {
       try {
         _subscriptionInfo = await _supabase.fetchSubscriptionInfo(
           _currentEmployee!.organizationId,
         );
-      } catch (_) {
-        // Fallback
+      } catch (e, stack) {
+        ErrorReportingService.instance.report(
+          e,
+          stack,
+          context: 'AppState._loadRemoteData(subscriptionInfo)',
+        );
       }
     }
     notifyListeners();
@@ -147,6 +164,16 @@ class AppState extends ChangeNotifier {
         .where((a) => a.employeeId == _currentEmployee!.id)
         .toList()
       ..sort((a, b) => b.submittedAt.compareTo(a.submittedAt));
+  }
+
+  /// Retrouver une archive par son identifiant (utilisé pour la recherche
+  /// par code / QR).
+  DailyArchive? getArchiveById(String id) {
+    try {
+      return _allArchives.firstWhere((a) => a.id == id);
+    } catch (_) {
+      return null;
+    }
   }
 
   bool get hasSubmittedToday {
@@ -409,7 +436,10 @@ class AppState extends ChangeNotifier {
     String physicalLocation = '',
   }) async {
     if (_currentEmployee == null) return 'Aucun utilisateur connecté.';
-    final archiveId = 'arc_${DateTime.now().millisecondsSinceEpoch}';
+    // Doit être un UUID valide : `daily_archives.id` est de type uuid côté
+    // Postgres. Un ID informel ('arc_<epoch>') fait échouer l'insertion en
+    // silence — c'était le bug d'origine.
+    final archiveId = const Uuid().v4();
     final uploadedFiles = await Future.wait(
       files.map(
         (f) => SupabaseService.instance.uploadDocument(

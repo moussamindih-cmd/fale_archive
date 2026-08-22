@@ -65,7 +65,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
       setState(() => _errorMessage = 'Les mots de passe ne correspondent pas.');
       return;
     }
-    setState(() { _isLoading = true; _errorMessage = null; });
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
     await Future.delayed(const Duration(milliseconds: 600));
     final error = await widget.appState.register(
       fullName: _nameCtrl.text,
@@ -81,7 +84,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
         barrierDismissible: false,
         builder: (ctx) => AlertDialog(
           title: const Text('Confirmation requise'),
-          content: const Text('Un lien de confirmation a été envoyé à votre adresse email professionnelle. Veuillez vérifier votre boîte de réception avant de vous connecter.'),
+          content: const Text(
+            'Un lien de confirmation a été envoyé à votre adresse email professionnelle. Veuillez vérifier votre boîte de réception avant de vous connecter.',
+          ),
           actions: [
             TextButton(
               onPressed: () {
@@ -96,7 +101,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
       );
     } else if (error != null) {
-      setState(() { _isLoading = false; _errorMessage = error; });
+      setState(() {
+        _isLoading = false;
+        _errorMessage = error;
+      });
     } else {
       Navigator.of(context).pushReplacement(
         PageRouteBuilder(
@@ -163,7 +171,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
           SafeArea(
             child: Center(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 16,
+                ),
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 480),
                   child: Column(
@@ -212,7 +223,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             onTap: () => setState(() => _selectedJob = job),
                             child: AnimatedContainer(
                               duration: const Duration(milliseconds: 200),
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 10,
+                              ),
                               decoration: BoxDecoration(
                                 color: selected
                                     ? color
@@ -230,7 +244,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                           color: color.withValues(alpha: 0.35),
                                           blurRadius: 10,
                                           offset: const Offset(0, 4),
-                                        )
+                                        ),
                                       ]
                                     : (isDark ? null : kSoftShadow),
                               ),
@@ -252,7 +266,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                       fontWeight: FontWeight.w600,
                                       color: selected
                                           ? Colors.white
-                                          : (isDark ? kDarkTextPrimary : kTextPrimary),
+                                          : (isDark
+                                                ? kDarkTextPrimary
+                                                : kTextPrimary),
                                     ),
                                   ),
                                 ],
@@ -284,19 +300,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 Container(
                                   padding: const EdgeInsets.all(14),
                                   decoration: BoxDecoration(
-                                    color: isDark ? kDangerDarkBg.withValues(alpha: 0.3) : kDangerBg,
+                                    color: isDark
+                                        ? kDangerDarkBg.withValues(alpha: 0.3)
+                                        : kDangerBg,
                                     borderRadius: BorderRadius.circular(14),
-                                    border: Border.all(color: kDanger.withValues(alpha: 0.3)),
+                                    border: Border.all(
+                                      color: kDanger.withValues(alpha: 0.3),
+                                    ),
                                   ),
                                   child: Row(
                                     children: [
-                                      const Icon(Icons.error_outline_rounded, color: kDanger, size: 18),
+                                      const Icon(
+                                        Icons.error_outline_rounded,
+                                        color: kDanger,
+                                        size: 18,
+                                      ),
                                       const SizedBox(width: 10),
                                       Expanded(
                                         child: Text(
                                           _errorMessage!,
                                           style: GoogleFonts.outfit(
-                                            color: isDark ? Colors.red.shade200 : const Color(0xFFDC2626),
+                                            color: isDark
+                                                ? Colors.red.shade200
+                                                : const Color(0xFFDC2626),
                                             fontSize: 13,
                                             fontWeight: FontWeight.w600,
                                           ),
@@ -315,9 +341,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 textCapitalization: TextCapitalization.words,
                                 decoration: const InputDecoration(
                                   hintText: 'ex. Amadou Sow',
-                                  prefixIcon: Icon(Icons.person_outline_rounded, size: 20),
+                                  prefixIcon: Icon(
+                                    Icons.person_outline_rounded,
+                                    size: 20,
+                                  ),
                                 ),
-                                validator: (v) => (v == null || v.trim().isEmpty) ? 'Nom complet requis' : null,
+                                validator: (v) =>
+                                    (v == null || v.trim().isEmpty)
+                                    ? 'Nom complet requis'
+                                    : null,
                               ),
                               const SizedBox(height: 16),
 
@@ -328,17 +360,40 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 keyboardType: TextInputType.emailAddress,
                                 decoration: const InputDecoration(
                                   hintText: 'votre@entreprise.com',
-                                  prefixIcon: Icon(Icons.mail_outline_rounded, size: 20),
+                                  prefixIcon: Icon(
+                                    Icons.mail_outline_rounded,
+                                    size: 20,
+                                  ),
                                 ),
                                 validator: (v) {
-                                  if (v == null || !v.contains('@')) return 'Email valide requis';
-                                  final domain = v.split('@').last.toLowerCase();
+                                  if (v == null || !v.contains('@')) {
+                                    return 'Email valide requis';
+                                  }
+                                  final domain = v
+                                      .split('@')
+                                      .last
+                                      .toLowerCase();
                                   const freeDomains = [
-                                    'gmail.com', 'yahoo.com', 'yahoo.fr', 'hotmail.com',
-                                    'hotmail.fr', 'outlook.com', 'outlook.fr', 'live.com',
-                                    'live.fr', 'icloud.com', 'me.com', 'mac.com',
-                                    'msn.com', 'aol.com', 'orange.fr', 'free.fr',
-                                    'sfr.fr', 'bbox.fr', 'laposte.net', 'ymail.com'
+                                    'gmail.com',
+                                    'yahoo.com',
+                                    'yahoo.fr',
+                                    'hotmail.com',
+                                    'hotmail.fr',
+                                    'outlook.com',
+                                    'outlook.fr',
+                                    'live.com',
+                                    'live.fr',
+                                    'icloud.com',
+                                    'me.com',
+                                    'mac.com',
+                                    'msn.com',
+                                    'aol.com',
+                                    'orange.fr',
+                                    'free.fr',
+                                    'sfr.fr',
+                                    'bbox.fr',
+                                    'laposte.net',
+                                    'ymail.com',
                                   ];
                                   if (freeDomains.contains(domain)) {
                                     return 'Veuillez utiliser un email professionnel';
@@ -355,10 +410,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 keyboardType: TextInputType.emailAddress,
                                 decoration: const InputDecoration(
                                   hintText: 'votre.nom@gmail.com',
-                                  prefixIcon: Icon(Icons.alternate_email_rounded, size: 20),
+                                  prefixIcon: Icon(
+                                    Icons.alternate_email_rounded,
+                                    size: 20,
+                                  ),
                                 ),
                                 validator: (v) {
-                                  if (v == null || v.isEmpty || !v.contains('@')) {
+                                  if (v == null ||
+                                      v.isEmpty ||
+                                      !v.contains('@')) {
                                     return 'Email valide requis';
                                   }
                                   return null;
@@ -373,17 +433,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 obscureText: _obscure1,
                                 decoration: InputDecoration(
                                   hintText: 'Au moins 6 caractères',
-                                  prefixIcon: const Icon(Icons.lock_outline_rounded, size: 20),
+                                  prefixIcon: const Icon(
+                                    Icons.lock_outline_rounded,
+                                    size: 20,
+                                  ),
                                   suffixIcon: IconButton(
                                     icon: Icon(
-                                      _obscure1 ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                                      _obscure1
+                                          ? Icons.visibility_outlined
+                                          : Icons.visibility_off_outlined,
                                       size: 20,
-                                      color: isDark ? kDarkTextSecondary : kTextSecondary,
+                                      color: isDark
+                                          ? kDarkTextSecondary
+                                          : kTextSecondary,
                                     ),
-                                    onPressed: () => setState(() => _obscure1 = !_obscure1),
+                                    onPressed: () =>
+                                        setState(() => _obscure1 = !_obscure1),
                                   ),
                                 ),
-                                validator: (v) => (v == null || v.length < 6) ? 'Minimum 6 caractères' : null,
+                                validator: (v) => (v == null || v.length < 6)
+                                    ? 'Minimum 6 caractères'
+                                    : null,
                               ),
                               const SizedBox(height: 16),
 
@@ -394,17 +464,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 obscureText: _obscure2,
                                 decoration: InputDecoration(
                                   hintText: 'Répétez le mot de passe',
-                                  prefixIcon: const Icon(Icons.lock_outline_rounded, size: 20),
+                                  prefixIcon: const Icon(
+                                    Icons.lock_outline_rounded,
+                                    size: 20,
+                                  ),
                                   suffixIcon: IconButton(
                                     icon: Icon(
-                                      _obscure2 ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                                      _obscure2
+                                          ? Icons.visibility_outlined
+                                          : Icons.visibility_off_outlined,
                                       size: 20,
-                                      color: isDark ? kDarkTextSecondary : kTextSecondary,
+                                      color: isDark
+                                          ? kDarkTextSecondary
+                                          : kTextSecondary,
                                     ),
-                                    onPressed: () => setState(() => _obscure2 = !_obscure2),
+                                    onPressed: () =>
+                                        setState(() => _obscure2 = !_obscure2),
                                   ),
                                 ),
-                                validator: (v) => (v == null || v.isEmpty) ? 'Confirmation requise' : null,
+                                validator: (v) => (v == null || v.isEmpty)
+                                    ? 'Confirmation requise'
+                                    : null,
                               ),
                               const SizedBox(height: 28),
 
@@ -413,10 +493,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   borderRadius: BorderRadius.circular(16),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: kPrimaryColor.withValues(alpha: 0.3),
+                                      color: kPrimaryColor.withValues(
+                                        alpha: 0.3,
+                                      ),
                                       blurRadius: 18,
                                       offset: const Offset(0, 6),
-                                    )
+                                    ),
                                   ],
                                 ),
                                 child: ElevatedButton.icon(
@@ -424,11 +506,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                       ? const SizedBox(
                                           width: 20,
                                           height: 20,
-                                          child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white),
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2.2,
+                                            color: Colors.white,
+                                          ),
                                         )
-                                      : const Icon(Icons.check_circle_outline_rounded, size: 20),
-                                  label: Text(_isLoading ? 'Création...' : 'Créer mon compte'),
-                                  onPressed: _isLoading ? null : _handleRegister,
+                                      : const Icon(
+                                          Icons.check_circle_outline_rounded,
+                                          size: 20,
+                                        ),
+                                  label: Text(
+                                    _isLoading
+                                        ? 'Création...'
+                                        : 'Créer mon compte',
+                                  ),
+                                  onPressed: _isLoading
+                                      ? null
+                                      : _handleRegister,
                                 ),
                               ),
                             ],

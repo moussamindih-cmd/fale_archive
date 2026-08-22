@@ -12,6 +12,9 @@ class ActionHistoryEntry {
     this.details = '',
   });
 
+  /// true si cette entrée est un commentaire d'équipe plutôt qu'une action système
+  bool get isComment => action == 'COMMENT';
+
   /// Format d'affichage de l'action
   String get displayAction {
     switch (action) {
@@ -23,6 +26,8 @@ class ActionHistoryEntry {
         return 'Changement de statut';
       case 'DELETE':
         return 'Suppression';
+      case 'RESTORE':
+        return 'Restauration';
       case 'VALIDATE':
         return 'Validation';
       case 'REJECT':
@@ -39,6 +44,8 @@ class ActionHistoryEntry {
         return 'Soumission d\'archive';
       case 'SCAN':
         return 'Numérisation';
+      case 'COMMENT':
+        return 'Commentaire';
       default:
         return action;
     }

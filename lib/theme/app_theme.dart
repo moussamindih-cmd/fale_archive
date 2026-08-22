@@ -7,57 +7,57 @@ import '../models/user_role.dart';
 // ═══════════════════════════════════════════════════════════════════════════════
 
 // ─── Couleurs Principales & Marque ───────────────────────────────────────────
-const Color kPrimaryColor = Color(0xFF4F46E5);        // Indigo Vibrant 600
-const Color kPrimaryLight = Color(0xFF6366F1);        // Indigo 500
-const Color kPrimaryDark = Color(0xFF3730A3);         // Indigo 800
-const Color kAccentColor = Color(0xFF06B6D4);         // Cyan 500
-const Color kAccentLight = Color(0xFF22D3EE);         // Cyan 400
+const Color kPrimaryColor = Color(0xFF4F46E5); // Indigo Vibrant 600
+const Color kPrimaryLight = Color(0xFF6366F1); // Indigo 500
+const Color kPrimaryDark = Color(0xFF3730A3); // Indigo 800
+const Color kAccentColor = Color(0xFF06B6D4); // Cyan 500
+const Color kAccentLight = Color(0xFF22D3EE); // Cyan 400
 
 // ─── Statuts & Sémantique ───────────────────────────────────────────────────
-const Color kSuccess = Color(0xFF10B981);             // Emeraude 500
-const Color kSuccessBg = Color(0xFFECFDF5);           // Emeraude 50
-const Color kSuccessDarkBg = Color(0xFF064E3B);       // Emeraude 900
+const Color kSuccess = Color(0xFF10B981); // Emeraude 500
+const Color kSuccessBg = Color(0xFFECFDF5); // Emeraude 50
+const Color kSuccessDarkBg = Color(0xFF064E3B); // Emeraude 900
 
-const Color kWarning = Color(0xFFF59E0B);             // Ambre 500
-const Color kWarningBg = Color(0xFFFFFBEB);           // Ambre 50
-const Color kWarningDarkBg = Color(0xFF78350F);       // Ambre 900
+const Color kWarning = Color(0xFFF59E0B); // Ambre 500
+const Color kWarningBg = Color(0xFFFFFBEB); // Ambre 50
+const Color kWarningDarkBg = Color(0xFF78350F); // Ambre 900
 
-const Color kDanger = Color(0xFFEF4444);              // Rouge 500
-const Color kDangerBg = Color(0xFFFEF2F2);            // Rouge 50
-const Color kDangerDarkBg = Color(0xFF7F1D1D);        // Rouge 900
+const Color kDanger = Color(0xFFEF4444); // Rouge 500
+const Color kDangerBg = Color(0xFFFEF2F2); // Rouge 50
+const Color kDangerDarkBg = Color(0xFF7F1D1D); // Rouge 900
 
-const Color kInfo = Color(0xFF3B82F6);                // Bleu 500
-const Color kInfoBg = Color(0xFFEFF6FF);              // Bleu 50
-const Color kInfoDarkBg = Color(0xFF1E3A8A);          // Bleu 900
+const Color kInfo = Color(0xFF3B82F6); // Bleu 500
+const Color kInfoBg = Color(0xFFEFF6FF); // Bleu 50
+const Color kInfoDarkBg = Color(0xFF1E3A8A); // Bleu 900
 
 // ─── Light Mode Surfaces ────────────────────────────────────────────────────
-const Color kBackground = Color(0xFFF8FAFC);          // Slate 50
-const Color kSurface = Color(0xFFFFFFFF);             // Pure White
-const Color kSurfaceSubtle = Color(0xFFF1F5F9);       // Slate 100
-const Color kBorderColor = Color(0xFFE2E8F0);         // Slate 200
-const Color kBorderSubtle = Color(0xFFF1F5F9);        // Slate 100
-const Color kTextPrimary = Color(0xFF0F172A);         // Slate 900
-const Color kTextSecondary = Color(0xFF475569);       // Slate 600
-const Color kTextMuted = Color(0xFF94A3B8);           // Slate 400
+const Color kBackground = Color(0xFFF8FAFC); // Slate 50
+const Color kSurface = Color(0xFFFFFFFF); // Pure White
+const Color kSurfaceSubtle = Color(0xFFF1F5F9); // Slate 100
+const Color kBorderColor = Color(0xFFE2E8F0); // Slate 200
+const Color kBorderSubtle = Color(0xFFF1F5F9); // Slate 100
+const Color kTextPrimary = Color(0xFF0F172A); // Slate 900
+const Color kTextSecondary = Color(0xFF475569); // Slate 600
+const Color kTextMuted = Color(0xFF94A3B8); // Slate 400
 
 // ─── Dark Mode Obsidian Surfaces ────────────────────────────────────────────
-const Color kDarkBackground = Color(0xFF0A0E1A);      // Obsidian 950
-const Color kDarkSurface = Color(0xFF111827);         // Slate 900
-const Color kDarkCard = Color(0xFF161F30);            // Slate 850
-const Color kDarkSurfaceSubtle = Color(0xFF1E293B);   // Slate 800
-const Color kDarkBorder = Color(0xFF1F293D);          // Slate 800 border
-const Color kDarkBorderSubtle = Color(0xFF1E293B);    // Slate 800
-const Color kDarkTextPrimary = Color(0xFFF8FAFC);     // Slate 50
-const Color kDarkTextSecondary = Color(0xFF94A3B8);   // Slate 400
-const Color kDarkTextMuted = Color(0xFF64748B);       // Slate 500
+const Color kDarkBackground = Color(0xFF0A0E1A); // Obsidian 950
+const Color kDarkSurface = Color(0xFF111827); // Slate 900
+const Color kDarkCard = Color(0xFF161F30); // Slate 850
+const Color kDarkSurfaceSubtle = Color(0xFF1E293B); // Slate 800
+const Color kDarkBorder = Color(0xFF1F293D); // Slate 800 border
+const Color kDarkBorderSubtle = Color(0xFF1E293B); // Slate 800
+const Color kDarkTextPrimary = Color(0xFFF8FAFC); // Slate 50
+const Color kDarkTextSecondary = Color(0xFF94A3B8); // Slate 400
+const Color kDarkTextMuted = Color(0xFF64748B); // Slate 500
 
 // ─── Couleurs par poste métier ────────────────────────────────────────────────
 const Map<String, Color> kJobColors = {
-  'Secrétaire': Color(0xFF8B5CF6),           // Violet
-  'Comptable': Color(0xFF10B981),            // Emeraude
-  'Gestionnaire': Color(0xFF0EA5E9),         // Sky Blue
+  'Secrétaire': Color(0xFF8B5CF6), // Violet
+  'Comptable': Color(0xFF10B981), // Emeraude
+  'Gestionnaire': Color(0xFF0EA5E9), // Sky Blue
   'Conseiller Principal': Color(0xFF6366F1), // Indigo
-  'Conseiller Adjoint': Color(0xFFF59E0B),   // Amber
+  'Conseiller Adjoint': Color(0xFFF59E0B), // Amber
 };
 
 const Map<String, IconData> kJobIcons = {
@@ -69,14 +69,15 @@ const Map<String, IconData> kJobIcons = {
 };
 
 Color jobColor(String jobTitle) => kJobColors[jobTitle] ?? kPrimaryColor;
-IconData jobIcon(String jobTitle) => kJobIcons[jobTitle] ?? Icons.work_outline_rounded;
+IconData jobIcon(String jobTitle) =>
+    kJobIcons[jobTitle] ?? Icons.work_outline_rounded;
 
 // ─── Couleurs par rôle ───────────────────────────────────────────────────────
 const Map<UserRole, Color> kRoleColors = {
-  UserRole.admin: Color(0xFFE11D48),                // Rose Rubis 600
+  UserRole.admin: Color(0xFFE11D48), // Rose Rubis 600
   UserRole.directeurAdministratif: Color(0xFF7C3AED), // Violet 600
-  UserRole.rh: Color(0xFFD946EF),                   // Fuchsia 600
-  UserRole.employe: Color(0xFF4F46E5),              // Indigo 600
+  UserRole.rh: Color(0xFFD946EF), // Fuchsia 600
+  UserRole.employe: Color(0xFF4F46E5), // Indigo 600
 };
 
 const Map<UserRole, IconData> kRoleIcons = {
@@ -87,7 +88,8 @@ const Map<UserRole, IconData> kRoleIcons = {
 };
 
 Color roleColor(UserRole role) => kRoleColors[role] ?? kPrimaryColor;
-IconData roleIcon(UserRole role) => kRoleIcons[role] ?? Icons.person_outline_rounded;
+IconData roleIcon(UserRole role) =>
+    kRoleIcons[role] ?? Icons.person_outline_rounded;
 
 Color employeeColor(String jobTitle, UserRole role) {
   if (role != UserRole.employe) return roleColor(role);
@@ -191,15 +193,57 @@ final ThemeData appTheme = ThemeData(
     brightness: Brightness.light,
   ),
   textTheme: GoogleFonts.outfitTextTheme().copyWith(
-    displayLarge: GoogleFonts.outfit(fontSize: 32, fontWeight: FontWeight.w800, color: kTextPrimary, letterSpacing: -1),
-    displayMedium: GoogleFonts.outfit(fontSize: 26, fontWeight: FontWeight.w800, color: kTextPrimary, letterSpacing: -0.8),
-    headlineMedium: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.w700, color: kTextPrimary, letterSpacing: -0.4),
-    titleLarge: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.w700, color: kTextPrimary, letterSpacing: -0.2),
-    titleMedium: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.w600, color: kTextPrimary),
-    bodyLarge: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.w400, color: kTextPrimary, height: 1.5),
-    bodyMedium: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.w400, color: kTextSecondary, height: 1.4),
-    bodySmall: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.w500, color: kTextMuted),
-    labelLarge: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 0.2),
+    displayLarge: GoogleFonts.outfit(
+      fontSize: 32,
+      fontWeight: FontWeight.w800,
+      color: kTextPrimary,
+      letterSpacing: -1,
+    ),
+    displayMedium: GoogleFonts.outfit(
+      fontSize: 26,
+      fontWeight: FontWeight.w800,
+      color: kTextPrimary,
+      letterSpacing: -0.8,
+    ),
+    headlineMedium: GoogleFonts.outfit(
+      fontSize: 20,
+      fontWeight: FontWeight.w700,
+      color: kTextPrimary,
+      letterSpacing: -0.4,
+    ),
+    titleLarge: GoogleFonts.outfit(
+      fontSize: 18,
+      fontWeight: FontWeight.w700,
+      color: kTextPrimary,
+      letterSpacing: -0.2,
+    ),
+    titleMedium: GoogleFonts.outfit(
+      fontSize: 15,
+      fontWeight: FontWeight.w600,
+      color: kTextPrimary,
+    ),
+    bodyLarge: GoogleFonts.outfit(
+      fontSize: 15,
+      fontWeight: FontWeight.w400,
+      color: kTextPrimary,
+      height: 1.5,
+    ),
+    bodyMedium: GoogleFonts.outfit(
+      fontSize: 14,
+      fontWeight: FontWeight.w400,
+      color: kTextSecondary,
+      height: 1.4,
+    ),
+    bodySmall: GoogleFonts.outfit(
+      fontSize: 12,
+      fontWeight: FontWeight.w500,
+      color: kTextMuted,
+    ),
+    labelLarge: GoogleFonts.outfit(
+      fontSize: 14,
+      fontWeight: FontWeight.w700,
+      letterSpacing: 0.2,
+    ),
   ),
   scaffoldBackgroundColor: kBackground,
 
@@ -249,7 +293,11 @@ final ThemeData appTheme = ThemeData(
       borderSide: const BorderSide(color: kDanger, width: 1.5),
     ),
     contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-    labelStyle: GoogleFonts.outfit(color: kTextSecondary, fontWeight: FontWeight.w500, fontSize: 14),
+    labelStyle: GoogleFonts.outfit(
+      color: kTextSecondary,
+      fontWeight: FontWeight.w500,
+      fontSize: 14,
+    ),
     hintStyle: GoogleFonts.outfit(color: kTextMuted, fontSize: 14),
     prefixIconColor: kTextSecondary,
     suffixIconColor: kTextSecondary,
@@ -262,7 +310,11 @@ final ThemeData appTheme = ThemeData(
       elevation: 0,
       minimumSize: const Size(double.infinity, 52),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      textStyle: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.w700, letterSpacing: 0.1),
+      textStyle: GoogleFonts.outfit(
+        fontSize: 15,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 0.1,
+      ),
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
     ),
   ),
@@ -290,8 +342,16 @@ final ThemeData appTheme = ThemeData(
   dialogTheme: DialogThemeData(
     backgroundColor: kSurface,
     elevation: 16,
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24), side: const BorderSide(color: kBorderColor)),
-    titleTextStyle: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.w800, color: kTextPrimary, letterSpacing: -0.3),
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(24),
+      side: const BorderSide(color: kBorderColor),
+    ),
+    titleTextStyle: GoogleFonts.outfit(
+      fontSize: 20,
+      fontWeight: FontWeight.w800,
+      color: kTextPrimary,
+      letterSpacing: -0.3,
+    ),
   ),
 
   bottomSheetTheme: const BottomSheetThemeData(
@@ -311,7 +371,11 @@ final ThemeData appTheme = ThemeData(
 
   snackBarTheme: SnackBarThemeData(
     backgroundColor: kTextPrimary,
-    contentTextStyle: GoogleFonts.outfit(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500),
+    contentTextStyle: GoogleFonts.outfit(
+      color: Colors.white,
+      fontSize: 14,
+      fontWeight: FontWeight.w500,
+    ),
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
     behavior: SnackBarBehavior.floating,
     elevation: 8,
@@ -331,15 +395,57 @@ final ThemeData darkAppTheme = ThemeData(
     brightness: Brightness.dark,
   ),
   textTheme: GoogleFonts.outfitTextTheme(ThemeData.dark().textTheme).copyWith(
-    displayLarge: GoogleFonts.outfit(fontSize: 32, fontWeight: FontWeight.w800, color: kDarkTextPrimary, letterSpacing: -1),
-    displayMedium: GoogleFonts.outfit(fontSize: 26, fontWeight: FontWeight.w800, color: kDarkTextPrimary, letterSpacing: -0.8),
-    headlineMedium: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.w700, color: kDarkTextPrimary, letterSpacing: -0.4),
-    titleLarge: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.w700, color: kDarkTextPrimary, letterSpacing: -0.2),
-    titleMedium: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.w600, color: kDarkTextPrimary),
-    bodyLarge: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.w400, color: kDarkTextPrimary, height: 1.5),
-    bodyMedium: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.w400, color: kDarkTextSecondary, height: 1.4),
-    bodySmall: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.w500, color: kDarkTextMuted),
-    labelLarge: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 0.2),
+    displayLarge: GoogleFonts.outfit(
+      fontSize: 32,
+      fontWeight: FontWeight.w800,
+      color: kDarkTextPrimary,
+      letterSpacing: -1,
+    ),
+    displayMedium: GoogleFonts.outfit(
+      fontSize: 26,
+      fontWeight: FontWeight.w800,
+      color: kDarkTextPrimary,
+      letterSpacing: -0.8,
+    ),
+    headlineMedium: GoogleFonts.outfit(
+      fontSize: 20,
+      fontWeight: FontWeight.w700,
+      color: kDarkTextPrimary,
+      letterSpacing: -0.4,
+    ),
+    titleLarge: GoogleFonts.outfit(
+      fontSize: 18,
+      fontWeight: FontWeight.w700,
+      color: kDarkTextPrimary,
+      letterSpacing: -0.2,
+    ),
+    titleMedium: GoogleFonts.outfit(
+      fontSize: 15,
+      fontWeight: FontWeight.w600,
+      color: kDarkTextPrimary,
+    ),
+    bodyLarge: GoogleFonts.outfit(
+      fontSize: 15,
+      fontWeight: FontWeight.w400,
+      color: kDarkTextPrimary,
+      height: 1.5,
+    ),
+    bodyMedium: GoogleFonts.outfit(
+      fontSize: 14,
+      fontWeight: FontWeight.w400,
+      color: kDarkTextSecondary,
+      height: 1.4,
+    ),
+    bodySmall: GoogleFonts.outfit(
+      fontSize: 12,
+      fontWeight: FontWeight.w500,
+      color: kDarkTextMuted,
+    ),
+    labelLarge: GoogleFonts.outfit(
+      fontSize: 14,
+      fontWeight: FontWeight.w700,
+      letterSpacing: 0.2,
+    ),
   ),
   scaffoldBackgroundColor: kDarkBackground,
 
@@ -388,7 +494,11 @@ final ThemeData darkAppTheme = ThemeData(
       borderSide: const BorderSide(color: kDanger, width: 1.5),
     ),
     contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-    labelStyle: GoogleFonts.outfit(color: kDarkTextSecondary, fontWeight: FontWeight.w500, fontSize: 14),
+    labelStyle: GoogleFonts.outfit(
+      color: kDarkTextSecondary,
+      fontWeight: FontWeight.w500,
+      fontSize: 14,
+    ),
     hintStyle: GoogleFonts.outfit(color: kDarkTextMuted, fontSize: 14),
     prefixIconColor: kDarkTextSecondary,
     suffixIconColor: kDarkTextSecondary,
@@ -401,7 +511,11 @@ final ThemeData darkAppTheme = ThemeData(
       elevation: 0,
       minimumSize: const Size(double.infinity, 52),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      textStyle: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.w700, letterSpacing: 0.1),
+      textStyle: GoogleFonts.outfit(
+        fontSize: 15,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 0.1,
+      ),
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
     ),
   ),
@@ -429,8 +543,16 @@ final ThemeData darkAppTheme = ThemeData(
   dialogTheme: DialogThemeData(
     backgroundColor: kDarkSurface,
     elevation: 16,
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24), side: const BorderSide(color: kDarkBorder)),
-    titleTextStyle: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.w800, color: kDarkTextPrimary, letterSpacing: -0.3),
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(24),
+      side: const BorderSide(color: kDarkBorder),
+    ),
+    titleTextStyle: GoogleFonts.outfit(
+      fontSize: 20,
+      fontWeight: FontWeight.w800,
+      color: kDarkTextPrimary,
+      letterSpacing: -0.3,
+    ),
   ),
 
   bottomSheetTheme: const BottomSheetThemeData(
@@ -450,8 +572,15 @@ final ThemeData darkAppTheme = ThemeData(
 
   snackBarTheme: SnackBarThemeData(
     backgroundColor: kDarkSurfaceSubtle,
-    contentTextStyle: GoogleFonts.outfit(color: kDarkTextPrimary, fontSize: 14, fontWeight: FontWeight.w500),
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: kDarkBorder)),
+    contentTextStyle: GoogleFonts.outfit(
+      color: kDarkTextPrimary,
+      fontSize: 14,
+      fontWeight: FontWeight.w500,
+    ),
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(16),
+      side: const BorderSide(color: kDarkBorder),
+    ),
     behavior: SnackBarBehavior.floating,
     elevation: 8,
   ),

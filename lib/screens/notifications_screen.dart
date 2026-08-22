@@ -31,9 +31,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final role = user?.role ?? UserRole.employe;
     final userId = user?.id ?? '';
 
-    final notifs = widget.notificationsState.forUser(userId: userId, role: role);
-    final displayed = _onlyUnread ? notifs.where((n) => !n.isRead).toList() : notifs;
-    final unreadCount = widget.notificationsState.unreadCount(userId: userId, role: role);
+    final notifs = widget.notificationsState.forUser(
+      userId: userId,
+      role: role,
+    );
+    final displayed = _onlyUnread
+        ? notifs.where((n) => !n.isRead).toList()
+        : notifs;
+    final unreadCount = widget.notificationsState.unreadCount(
+      userId: userId,
+      role: role,
+    );
 
     return Scaffold(
       backgroundColor: isDark ? kDarkBackground : kBackground,
@@ -52,10 +60,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               icon: const Icon(Icons.done_all_rounded, size: 16),
               label: const Text('Tout marquer lu'),
               onPressed: () {
-                widget.notificationsState.markAllAsRead(userId: userId, role: role);
+                widget.notificationsState.markAllAsRead(
+                  userId: userId,
+                  role: role,
+                );
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
-                    content: Text('Toutes les notifications sont marquées comme lues.'),
+                    content: Text(
+                      'Toutes les notifications sont marquées comme lues.',
+                    ),
                     behavior: SnackBarBehavior.floating,
                   ),
                 );
@@ -123,7 +136,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                           ),
                           const SizedBox(height: 14),
                           Text(
-                            _onlyUnread ? 'Aucune notification non lue' : 'Aucune notification reçue',
+                            _onlyUnread
+                                ? 'Aucune notification non lue'
+                                : 'Aucune notification reçue',
                             style: GoogleFonts.outfit(
                               fontSize: 16,
                               fontWeight: FontWeight.w700,
@@ -135,7 +150,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                             'Les alertes importantes et rappels apparaîtront ici.',
                             style: GoogleFonts.outfit(
                               fontSize: 13,
-                              color: isDark ? kDarkTextSecondary : kTextSecondary,
+                              color: isDark
+                                  ? kDarkTextSecondary
+                                  : kTextSecondary,
                             ),
                           ),
                         ],
@@ -143,12 +160,20 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     ),
                   )
                 : ListView.separated(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 10,
+                    ),
                     itemCount: displayed.length,
                     separatorBuilder: (_, __) => const SizedBox(height: 10),
                     itemBuilder: (context, index) {
                       final notif = displayed[index];
-                      return _buildNotificationCard(notif, userId, role, isDark);
+                      return _buildNotificationCard(
+                        notif,
+                        userId,
+                        role,
+                        isDark,
+                      );
                     },
                   ),
           ),
@@ -173,9 +198,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         decoration: BoxDecoration(
           color: selected ? accent : (isDark ? kDarkCard : kSurface),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: selected ? accent : (isDark ? kDarkBorder : kBorderColor)),
+          border: Border.all(
+            color: selected ? accent : (isDark ? kDarkBorder : kBorderColor),
+          ),
           boxShadow: selected
-              ? [BoxShadow(color: accent.withValues(alpha: 0.3), blurRadius: 10, offset: const Offset(0, 3))]
+              ? [
+                  BoxShadow(
+                    color: accent.withValues(alpha: 0.3),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ]
               : (isDark ? null : kSoftShadow),
         ),
         child: Text(
@@ -183,14 +216,21 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           style: GoogleFonts.outfit(
             fontSize: 13,
             fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-            color: selected ? Colors.white : (isDark ? kDarkTextPrimary : kTextPrimary),
+            color: selected
+                ? Colors.white
+                : (isDark ? kDarkTextPrimary : kTextPrimary),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildNotificationCard(InAppNotification notif, String userId, UserRole role, bool isDark) {
+  Widget _buildNotificationCard(
+    InAppNotification notif,
+    String userId,
+    UserRole role,
+    bool isDark,
+  ) {
     return Dismissible(
       key: Key(notif.id),
       direction: DismissDirection.endToStart,
@@ -203,7 +243,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         ),
         child: const Icon(Icons.delete_outline, color: Colors.white, size: 22),
       ),
-      onDismissed: (_) => widget.notificationsState.removeNotification(notif.id),
+      onDismissed: (_) =>
+          widget.notificationsState.removeNotification(notif.id),
       child: Container(
         decoration: BoxDecoration(
           color: notif.isRead
@@ -234,7 +275,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       color: notif.type.color.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Icon(notif.type.icon, color: notif.type.color, size: 20),
+                    child: Icon(
+                      notif.type.icon,
+                      color: notif.type.color,
+                      size: 20,
+                    ),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
@@ -248,9 +293,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                               child: Text(
                                 notif.title,
                                 style: GoogleFonts.outfit(
-                                  fontWeight: notif.isRead ? FontWeight.w600 : FontWeight.w800,
+                                  fontWeight: notif.isRead
+                                      ? FontWeight.w600
+                                      : FontWeight.w800,
                                   fontSize: 14,
-                                  color: isDark ? kDarkTextPrimary : kTextPrimary,
+                                  color: isDark
+                                      ? kDarkTextPrimary
+                                      : kTextPrimary,
                                 ),
                               ),
                             ),
@@ -277,7 +326,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                         Row(
                           children: [
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 3,
+                              ),
                               decoration: BoxDecoration(
                                 color: notif.type.color.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(6),
@@ -301,9 +353,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                   shape: BoxShape.circle,
                                   boxShadow: [
                                     BoxShadow(
-                                      color: kPrimaryLight.withValues(alpha: 0.5),
+                                      color: kPrimaryLight.withValues(
+                                        alpha: 0.5,
+                                      ),
                                       blurRadius: 6,
-                                    )
+                                    ),
                                   ],
                                 ),
                               ),

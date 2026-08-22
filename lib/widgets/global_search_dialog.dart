@@ -80,7 +80,8 @@ class _GlobalSearchDialogState extends State<GlobalSearchDialog> {
     final matchingCandidates = _filterCandidates();
     final matchingEmployees = _filterEmployees(role);
 
-    final totalCount = matchingArchives.length +
+    final totalCount =
+        matchingArchives.length +
         matchingLogistics.length +
         matchingCandidates.length +
         matchingEmployees.length;
@@ -93,7 +94,10 @@ class _GlobalSearchDialogState extends State<GlobalSearchDialog> {
         decoration: BoxDecoration(
           color: isDark ? kDarkSurface : kSurface,
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: isDark ? kDarkBorder : kBorderColor, width: 1),
+          border: Border.all(
+            color: isDark ? kDarkBorder : kBorderColor,
+            width: 1,
+          ),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.35),
@@ -119,14 +123,19 @@ class _GlobalSearchDialogState extends State<GlobalSearchDialog> {
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.search_rounded, color: kPrimaryLight, size: 22),
+                      Icon(
+                        Icons.search_rounded,
+                        color: kPrimaryLight,
+                        size: 22,
+                      ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: TextField(
                           controller: _searchCtrl,
                           autofocus: true,
                           decoration: InputDecoration(
-                            hintText: 'Rechercher un document, candidat, dépense...',
+                            hintText:
+                                'Rechercher un document, candidat, dépense...',
                             border: InputBorder.none,
                             enabledBorder: InputBorder.none,
                             focusedBorder: InputBorder.none,
@@ -142,19 +151,28 @@ class _GlobalSearchDialogState extends State<GlobalSearchDialog> {
                             fontWeight: FontWeight.w600,
                             color: isDark ? kDarkTextPrimary : kTextPrimary,
                           ),
-                          onChanged: (v) => setState(() => _query = v.trim().toLowerCase()),
+                          onChanged: (v) =>
+                              setState(() => _query = v.trim().toLowerCase()),
                         ),
                       ),
                       if (_query.isNotEmpty)
                         IconButton(
-                          icon: Icon(Icons.clear_rounded, size: 18, color: isDark ? kDarkTextSecondary : kTextSecondary),
+                          icon: Icon(
+                            Icons.clear_rounded,
+                            size: 18,
+                            color: isDark ? kDarkTextSecondary : kTextSecondary,
+                          ),
                           onPressed: () {
                             _searchCtrl.clear();
                             setState(() => _query = '');
                           },
                         ),
                       IconButton(
-                        icon: Icon(Icons.close_rounded, size: 20, color: isDark ? kDarkTextSecondary : kTextSecondary),
+                        icon: Icon(
+                          Icons.close_rounded,
+                          size: 20,
+                          color: isDark ? kDarkTextSecondary : kTextSecondary,
+                        ),
                         onPressed: () => Navigator.pop(context),
                       ),
                     ],
@@ -171,11 +189,15 @@ class _GlobalSearchDialogState extends State<GlobalSearchDialog> {
                         return Padding(
                           padding: const EdgeInsets.only(right: 8),
                           child: InkWell(
-                            onTap: () => setState(() => _selectedCategory = cat),
+                            onTap: () =>
+                                setState(() => _selectedCategory = cat),
                             borderRadius: BorderRadius.circular(12),
                             child: AnimatedContainer(
                               duration: const Duration(milliseconds: 200),
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
                               decoration: BoxDecoration(
                                 color: selected
                                     ? accent
@@ -195,17 +217,23 @@ class _GlobalSearchDialogState extends State<GlobalSearchDialog> {
                                     size: 14,
                                     color: selected
                                         ? Colors.white
-                                        : (isDark ? kDarkTextSecondary : kTextSecondary),
+                                        : (isDark
+                                              ? kDarkTextSecondary
+                                              : kTextSecondary),
                                   ),
                                   const SizedBox(width: 6),
                                   Text(
                                     cat.label,
                                     style: GoogleFonts.outfit(
                                       fontSize: 12,
-                                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                                      fontWeight: selected
+                                          ? FontWeight.w700
+                                          : FontWeight.w500,
                                       color: selected
                                           ? Colors.white
-                                          : (isDark ? kDarkTextPrimary : kTextPrimary),
+                                          : (isDark
+                                                ? kDarkTextPrimary
+                                                : kTextPrimary),
                                     ),
                                   ),
                                 ],
@@ -226,33 +254,37 @@ class _GlobalSearchDialogState extends State<GlobalSearchDialog> {
                   ? _buildEmptyState(
                       icon: Icons.manage_search_rounded,
                       title: 'Command Palette de Recherche',
-                      subtitle: 'Tapez un mot-clé (titre, nom, facture, catégorie) pour parcourir instantanément tout l\'écosystème.',
+                      subtitle:
+                          'Tapez un mot-clé (titre, nom, facture, catégorie) pour parcourir instantanément tout l\'écosystème.',
                       isDark: isDark,
                     )
                   : totalCount == 0
-                      ? _buildEmptyState(
-                          icon: Icons.search_off_rounded,
-                          title: 'Aucun résultat trouvé',
-                          subtitle: 'Aucune donnée ne correspond à "$_query".',
-                          isDark: isDark,
-                        )
-                      : ListView(
-                          padding: const EdgeInsets.all(16),
-                          children: [
-                            if (_selectedCategory == SearchCategory.tous ||
-                                _selectedCategory == SearchCategory.archives)
-                              ..._buildArchivesSection(matchingArchives, isDark),
-                            if (_selectedCategory == SearchCategory.tous ||
-                                _selectedCategory == SearchCategory.logistique)
-                              ..._buildLogisticsSection(matchingLogistics, isDark),
-                            if (_selectedCategory == SearchCategory.tous ||
-                                _selectedCategory == SearchCategory.candidats)
-                              ..._buildCandidatesSection(matchingCandidates, isDark),
-                            if (_selectedCategory == SearchCategory.tous ||
-                                _selectedCategory == SearchCategory.utilisateurs)
-                              ..._buildEmployeesSection(matchingEmployees, isDark),
-                          ],
-                        ),
+                  ? _buildEmptyState(
+                      icon: Icons.search_off_rounded,
+                      title: 'Aucun résultat trouvé',
+                      subtitle: 'Aucune donnée ne correspond à "$_query".',
+                      isDark: isDark,
+                    )
+                  : ListView(
+                      padding: const EdgeInsets.all(16),
+                      children: [
+                        if (_selectedCategory == SearchCategory.tous ||
+                            _selectedCategory == SearchCategory.archives)
+                          ..._buildArchivesSection(matchingArchives, isDark),
+                        if (_selectedCategory == SearchCategory.tous ||
+                            _selectedCategory == SearchCategory.logistique)
+                          ..._buildLogisticsSection(matchingLogistics, isDark),
+                        if (_selectedCategory == SearchCategory.tous ||
+                            _selectedCategory == SearchCategory.candidats)
+                          ..._buildCandidatesSection(
+                            matchingCandidates,
+                            isDark,
+                          ),
+                        if (_selectedCategory == SearchCategory.tous ||
+                            _selectedCategory == SearchCategory.utilisateurs)
+                          ..._buildEmployeesSection(matchingEmployees, isDark),
+                      ],
+                    ),
             ),
           ],
         ),
@@ -293,7 +325,9 @@ class _GlobalSearchDialogState extends State<GlobalSearchDialog> {
 
   List<Employee> _filterEmployees(UserRole role) {
     if (_query.isEmpty) return [];
-    if (role != UserRole.admin && role != UserRole.directeurAdministratif) return [];
+    if (role != UserRole.admin && role != UserRole.directeurAdministratif) {
+      return [];
+    }
     return widget.appState.employees.where((e) {
       return e.fullName.toLowerCase().contains(_query) ||
           e.email.toLowerCase().contains(_query) ||
@@ -305,15 +339,21 @@ class _GlobalSearchDialogState extends State<GlobalSearchDialog> {
   List<Widget> _buildArchivesSection(List<DailyArchive> archives, bool isDark) {
     if (archives.isEmpty) return [];
     return [
-      _sectionHeader('Archives Journalières (${archives.length})', kPrimaryColor),
-      ...archives.map((a) => _searchResultCard(
-            icon: jobIcon(a.jobTitle),
-            iconColor: jobColor(a.jobTitle),
-            title: a.title,
-            subtitle: '${a.employeeName} • ${DateFormat('dd/MM/yyyy').format(a.createdAt)} • ${a.documentCount} doc(s)',
-            onTap: () => Navigator.pop(context),
-            isDark: isDark,
-          )),
+      _sectionHeader(
+        'Archives Journalières (${archives.length})',
+        kPrimaryColor,
+      ),
+      ...archives.map(
+        (a) => _searchResultCard(
+          icon: jobIcon(a.jobTitle),
+          iconColor: jobColor(a.jobTitle),
+          title: a.title,
+          subtitle:
+              '${a.employeeName} • ${DateFormat('dd/MM/yyyy').format(a.createdAt)} • ${a.documentCount} doc(s)',
+          onTap: () => Navigator.pop(context),
+          isDark: isDark,
+        ),
+      ),
       const SizedBox(height: 12),
     ];
   }
@@ -321,58 +361,76 @@ class _GlobalSearchDialogState extends State<GlobalSearchDialog> {
   List<Widget> _buildLogisticsSection(List<LogisticsItem> items, bool isDark) {
     if (items.isEmpty) return [];
     return [
-      _sectionHeader('Logistique & Dépenses (${items.length})', const Color(0xFF8B5CF6)),
-      ...items.map((i) => _searchResultCard(
-            icon: i.documentType.icon,
-            iconColor: const Color(0xFF8B5CF6),
-            title: '${i.documentType.label} : ${i.reference}',
-            subtitle: '${i.supplier} • ${i.status.label} • ${DateFormat('dd/MM/yyyy').format(i.issueDate)}',
-            onTap: () {
-              Navigator.pop(context);
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => LogisticsDetailScreen(
-                    itemId: i.id,
-                    logisticsState: widget.logisticsState,
-                    currentUserRole: widget.appState.currentEmployee?.role ?? UserRole.employe,
-                    currentUserName: widget.appState.currentEmployee?.fullName ?? '',
-                  ),
+      _sectionHeader(
+        'Logistique & Dépenses (${items.length})',
+        const Color(0xFF8B5CF6),
+      ),
+      ...items.map(
+        (i) => _searchResultCard(
+          icon: i.documentType.icon,
+          iconColor: const Color(0xFF8B5CF6),
+          title: '${i.documentType.label} : ${i.reference}',
+          subtitle:
+              '${i.supplier} • ${i.status.label} • ${DateFormat('dd/MM/yyyy').format(i.issueDate)}',
+          onTap: () {
+            Navigator.pop(context);
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => LogisticsDetailScreen(
+                  itemId: i.id,
+                  logisticsState: widget.logisticsState,
+                  currentUserRole:
+                      widget.appState.currentEmployee?.role ?? UserRole.employe,
+                  currentUserName:
+                      widget.appState.currentEmployee?.fullName ?? '',
                 ),
-              );
-            },
-            isDark: isDark,
-          )),
+              ),
+            );
+          },
+          isDark: isDark,
+        ),
+      ),
       const SizedBox(height: 12),
     ];
   }
 
-  List<Widget> _buildCandidatesSection(List<Candidate> candidates, bool isDark) {
+  List<Widget> _buildCandidatesSection(
+    List<Candidate> candidates,
+    bool isDark,
+  ) {
     if (candidates.isEmpty) return [];
     return [
-      _sectionHeader('Candidats RH (${candidates.length})', const Color(0xFFEC4899)),
-      ...candidates.map((c) => _searchResultCard(
-            icon: Icons.person_rounded,
-            iconColor: const Color(0xFFEC4899),
-            title: c.fullName,
-            subtitle: 'Poste : ${c.targetPosition} • Statut : ${c.status.label}',
-            onTap: () {
-              Navigator.pop(context);
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => CandidateDetailScreen(
-                    candidateId: c.id,
-                    candidatesState: widget.candidatesState,
-                    canEdit: widget.appState.currentEmployee?.role == UserRole.rh ||
-                        widget.appState.currentEmployee?.role == UserRole.admin,
-                    currentUserName: widget.appState.currentEmployee?.fullName ?? '',
-                  ),
+      _sectionHeader(
+        'Candidats RH (${candidates.length})',
+        const Color(0xFFEC4899),
+      ),
+      ...candidates.map(
+        (c) => _searchResultCard(
+          icon: Icons.person_rounded,
+          iconColor: const Color(0xFFEC4899),
+          title: c.fullName,
+          subtitle: 'Poste : ${c.targetPosition} • Statut : ${c.status.label}',
+          onTap: () {
+            Navigator.pop(context);
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => CandidateDetailScreen(
+                  candidateId: c.id,
+                  candidatesState: widget.candidatesState,
+                  canEdit:
+                      widget.appState.currentEmployee?.role == UserRole.rh ||
+                      widget.appState.currentEmployee?.role == UserRole.admin,
+                  currentUserName:
+                      widget.appState.currentEmployee?.fullName ?? '',
                 ),
-              );
-            },
-            isDark: isDark,
-          )),
+              ),
+            );
+          },
+          isDark: isDark,
+        ),
+      ),
       const SizedBox(height: 12),
     ];
   }
@@ -380,30 +438,38 @@ class _GlobalSearchDialogState extends State<GlobalSearchDialog> {
   List<Widget> _buildEmployeesSection(List<Employee> employees, bool isDark) {
     if (employees.isEmpty) return [];
     return [
-      _sectionHeader('Équipe & Utilisateurs (${employees.length})', const Color(0xFF10B981)),
-      ...employees.map((e) => _searchResultCard(
-            icon: roleIcon(e.role),
-            iconColor: roleColor(e.role),
-            title: e.fullName,
-            subtitle: '${e.role.label} ${e.jobTitle.isNotEmpty ? "• ${e.jobTitle}" : ""} • ${e.email}',
-            trailing: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: e.isActive ? kSuccess.withValues(alpha: 0.12) : kDanger.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(
-                e.isActive ? 'Actif' : 'Inactif',
-                style: GoogleFonts.outfit(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: e.isActive ? kSuccess : kDanger,
-                ),
+      _sectionHeader(
+        'Équipe & Utilisateurs (${employees.length})',
+        const Color(0xFF10B981),
+      ),
+      ...employees.map(
+        (e) => _searchResultCard(
+          icon: roleIcon(e.role),
+          iconColor: roleColor(e.role),
+          title: e.fullName,
+          subtitle:
+              '${e.role.label} ${e.jobTitle.isNotEmpty ? "• ${e.jobTitle}" : ""} • ${e.email}',
+          trailing: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: e.isActive
+                  ? kSuccess.withValues(alpha: 0.12)
+                  : kDanger.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              e.isActive ? 'Actif' : 'Inactif',
+              style: GoogleFonts.outfit(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: e.isActive ? kSuccess : kDanger,
               ),
             ),
-            onTap: () => Navigator.pop(context),
-            isDark: isDark,
-          )),
+          ),
+          onTap: () => Navigator.pop(context),
+          isDark: isDark,
+        ),
+      ),
       const SizedBox(height: 12),
     ];
   }
@@ -428,7 +494,11 @@ class _GlobalSearchDialogState extends State<GlobalSearchDialog> {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: isDark ? kDarkBorder.withValues(alpha: 0.6) : kBorderColor.withValues(alpha: 0.6)),
+              border: Border.all(
+                color: isDark
+                    ? kDarkBorder.withValues(alpha: 0.6)
+                    : kBorderColor.withValues(alpha: 0.6),
+              ),
             ),
             child: Row(
               children: [
@@ -464,7 +534,14 @@ class _GlobalSearchDialogState extends State<GlobalSearchDialog> {
                     ],
                   ),
                 ),
-                if (trailing != null) trailing else Icon(Icons.arrow_forward_ios_rounded, size: 12, color: isDark ? kDarkTextMuted : kTextMuted),
+                if (trailing != null)
+                  trailing
+                else
+                  Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    size: 12,
+                    color: isDark ? kDarkTextMuted : kTextMuted,
+                  ),
               ],
             ),
           ),
@@ -478,9 +555,23 @@ class _GlobalSearchDialogState extends State<GlobalSearchDialog> {
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         children: [
-          Container(width: 3, height: 14, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2))),
+          Container(
+            width: 3,
+            height: 14,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
           const SizedBox(width: 8),
-          Text(title, style: GoogleFonts.outfit(fontWeight: FontWeight.w800, fontSize: 12, color: color)),
+          Text(
+            title,
+            style: GoogleFonts.outfit(
+              fontWeight: FontWeight.w800,
+              fontSize: 12,
+              color: color,
+            ),
+          ),
         ],
       ),
     );

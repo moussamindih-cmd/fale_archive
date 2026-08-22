@@ -1,17 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:uuid/uuid.dart';
 import '../models/logistics_item.dart';
 import '../models/attached_file.dart';
 import '../models/action_history_entry.dart';
 import '../services/supabase_service.dart';
+import '../services/error_reporting_service.dart';
 
 class LogisticsState extends ChangeNotifier {
   // ─── Store ──────────────────────────────────────────────────────────────
   final List<LogisticsItem> _items = [];
+  final SupabaseService _supabase;
 
   bool _isLoading = false;
   bool get isLoading => _isLoading;
 
-  LogisticsState() {
+  /// [supabaseService] est injectable pour les tests (mock) ; en usage
+  /// normal, le singleton [SupabaseService.instance] est utilisé.
+  LogisticsState({SupabaseService? supabaseService})
+    : _supabase = supabaseService ?? SupabaseService.instance {
     _loadFromSupabase();
   }
 
@@ -19,12 +25,16 @@ class LogisticsState extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
     try {
-      final list = await SupabaseService.instance.fetchAllLogisticsItems();
+      final list = await _supabase.fetchAllLogisticsItems();
       _items
         ..clear()
         ..addAll(list);
-    } catch (_) {
-      // Ignorer en cas d'erreur réseau
+    } catch (e, stack) {
+      ErrorReportingService.instance.report(
+        e,
+        stack,
+        context: 'LogisticsState._loadFromSupabase',
+      );
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -54,10 +64,12 @@ class LogisticsState extends ChangeNotifier {
     return List.generate(days, (i) {
       final day = today.subtract(Duration(days: days - 1 - i));
       return items
-          .where((it) =>
-              it.issueDate.year == day.year &&
-              it.issueDate.month == day.month &&
-              it.issueDate.day == day.day)
+          .where(
+            (it) =>
+                it.issueDate.year == day.year &&
+                it.issueDate.month == day.month &&
+                it.issueDate.day == day.day,
+          )
           .length;
     });
   }
@@ -74,9 +86,11 @@ class LogisticsState extends ChangeNotifier {
     final from = today.subtract(Duration(days: fromDaysAgo - 1));
     final to = today.subtract(Duration(days: toDaysAgo - 1));
     return items
-        .where((it) =>
-            !it.issueDate.isBefore(from) &&
-            (toDaysAgo == 0 || it.issueDate.isBefore(to)))
+        .where(
+          (it) =>
+              !it.issueDate.isBefore(from) &&
+              (toDaysAgo == 0 || it.issueDate.isBefore(to)),
+        )
         .length;
   }
 
@@ -124,8 +138,9 @@ class LogisticsState extends ChangeNotifier {
 
   // ─── CRUD ───────────────────────────────────────────────────────────────
 
-  /// Ajouter un nouveau document logistique
-  Future<void> addItem({
+  /// Ajouter un nouveau document logistique. Retourne `null` si l'ajout a
+  /// réussi, sinon un message d'erreur — à vérifier par l'appelant.
+  Future<String?> addItem({
     required LogisticsDocType documentType,
     required String reference,
     double? amount,
@@ -143,7 +158,10 @@ class LogisticsState extends ChangeNotifier {
       details: 'Document logistique enregistré.',
     );
     final item = LogisticsItem(
-      id: 'log_${DateTime.now().millisecondsSinceEpoch}',
+      // Doit être un UUID valide : `logistics_items.id` est de type uuid
+      // côté Postgres. Un ID informel ('log_<epoch>') fait échouer
+      // l'insertion en silence — c'était le bug d'origine.
+      id: const Uuid().v4(),
       documentType: documentType,
       reference: reference.trim(),
       amount: amount,
@@ -161,7 +179,7 @@ class LogisticsState extends ChangeNotifier {
     // Upload des fichiers joints puis persistance Supabase
     final uploaded = await Future.wait(
       files.map(
-        (f) => SupabaseService.instance.uploadDocument(
+        (f) => _supabase.uploadDocument(
           module: 'logistics',
           entityId: item.id,
           file: f,
@@ -173,13 +191,18 @@ class LogisticsState extends ChangeNotifier {
       _items[idx] = _items[idx].copyWith(files: uploaded);
       notifyListeners();
     }
-    await SupabaseService.instance.insertLogisticsItem(
+    final error = await _supabase.insertLogisticsItem(
       item.copyWith(files: uploaded),
     );
-    await SupabaseService.instance.insertHistoryEntry(
-      entry: entry,
-      logisticsItemId: item.id,
-    );
+    if (error != null) {
+      // La persistance a échoué : annuler la mise à jour optimiste plutôt
+      // que de laisser un document fantôme, visible seulement en local.
+      _items.removeWhere((i) => i.id == item.id);
+      notifyListeners();
+      return error;
+    }
+    await _supabase.insertHistoryEntry(entry: entry, logisticsItemId: item.id);
+    return null;
   }
 
   /// Modifier un document existant
@@ -218,7 +241,7 @@ class LogisticsState extends ChangeNotifier {
     if (files != null) {
       uploadedFiles = await Future.wait(
         files.map(
-          (f) => SupabaseService.instance.uploadDocument(
+          (f) => _supabase.uploadDocument(
             module: 'logistics',
             entityId: id,
             file: f,
@@ -231,7 +254,7 @@ class LogisticsState extends ChangeNotifier {
         notifyListeners();
       }
     }
-    await SupabaseService.instance.updateLogisticsItem(
+    await _supabase.updateLogisticsItem(
       id: id,
       documentType: documentType,
       reference: reference,
@@ -241,10 +264,7 @@ class LogisticsState extends ChangeNotifier {
       notes: notes,
       files: uploadedFiles,
     );
-    await SupabaseService.instance.insertHistoryEntry(
-      entry: entry,
-      logisticsItemId: id,
-    );
+    await _supabase.insertHistoryEntry(entry: entry, logisticsItemId: id);
   }
 
   /// Valider un document (Directeur Administratif / Admin)
@@ -267,14 +287,11 @@ class LogisticsState extends ChangeNotifier {
       history: [...old.history, entry],
     );
     notifyListeners();
-    await SupabaseService.instance.validateLogisticsItem(
+    await _supabase.validateLogisticsItem(
       id: id,
       validatedByName: validatorName,
     );
-    await SupabaseService.instance.insertHistoryEntry(
-      entry: entry,
-      logisticsItemId: id,
-    );
+    await _supabase.insertHistoryEntry(entry: entry, logisticsItemId: id);
   }
 
   /// Rejeter un document (Directeur Administratif / Admin)
@@ -300,14 +317,8 @@ class LogisticsState extends ChangeNotifier {
       history: [...old.history, entry],
     );
     notifyListeners();
-    await SupabaseService.instance.rejectLogisticsItem(
-      id: id,
-      validatedByName: validatorName,
-    );
-    await SupabaseService.instance.insertHistoryEntry(
-      entry: entry,
-      logisticsItemId: id,
-    );
+    await _supabase.rejectLogisticsItem(id: id, validatedByName: validatorName);
+    await _supabase.insertHistoryEntry(entry: entry, logisticsItemId: id);
   }
 
   /// Suppression logique
@@ -324,16 +335,47 @@ class LogisticsState extends ChangeNotifier {
       timestamp: DateTime.now(),
       details: 'Document supprimé (archivé).',
     );
+    final now = DateTime.now();
     _items[idx] = old.copyWith(
       isDeleted: true,
+      deletedAt: now,
       history: [...old.history, entry],
     );
     notifyListeners();
-    await SupabaseService.instance.softDeleteLogisticsItem(id);
-    await SupabaseService.instance.insertHistoryEntry(
-      entry: entry,
-      logisticsItemId: id,
+    await _supabase.softDeleteLogisticsItem(id);
+    await _supabase.insertHistoryEntry(entry: entry, logisticsItemId: id);
+  }
+
+  /// Restaurer un document logistique depuis la corbeille
+  Future<void> restoreItem({
+    required String id,
+    required String actionUserName,
+  }) async {
+    final idx = _items.indexWhere((i) => i.id == id);
+    if (idx == -1) return;
+    final old = _items[idx];
+    final entry = ActionHistoryEntry(
+      userName: actionUserName,
+      action: 'RESTORE',
+      timestamp: DateTime.now(),
+      details: 'Document restauré depuis la corbeille.',
     );
+    _items[idx] = old.copyWith(
+      isDeleted: false,
+      clearDeletedAt: true,
+      history: [...old.history, entry],
+    );
+    notifyListeners();
+    await _supabase.restoreLogisticsItem(id);
+    await _supabase.insertHistoryEntry(entry: entry, logisticsItemId: id);
+  }
+
+  /// Supprimer définitivement un document logistique (irréversible)
+  Future<void> permanentlyDeleteItem(String id) async {
+    _items.removeWhere((i) => i.id == id);
+    _historyCache.remove(id);
+    notifyListeners();
+    await _supabase.permanentlyDeleteLogisticsItem(id);
   }
 
   /// Récupérer un item par son ID
@@ -343,5 +385,152 @@ class LogisticsState extends ChangeNotifier {
     } catch (_) {
       return null;
     }
+  }
+
+  /// Documents logistiques dans la corbeille (suppression logique)
+  List<LogisticsItem> get deletedItems =>
+      List.unmodifiable(_items.where((i) => i.isDeleted));
+
+  // ─── Historique & commentaires d'équipe ────────────────────────────────
+
+  final Map<String, List<ActionHistoryEntry>> _historyCache = {};
+
+  /// Historique (actions système + commentaires) d'un document logistique,
+  /// du plus ancien au plus récent. Vide tant que [loadHistory] n'a pas été
+  /// appelé.
+  List<ActionHistoryEntry> historyFor(String itemId) =>
+      List.unmodifiable(_historyCache[itemId] ?? const []);
+
+  /// Charge l'historique complet d'un document depuis Supabase.
+  Future<void> loadHistory(String itemId) async {
+    try {
+      final entries = await _supabase.fetchHistoryFor(logisticsItemId: itemId);
+      _historyCache[itemId] = entries;
+      notifyListeners();
+    } catch (e, stack) {
+      ErrorReportingService.instance.report(
+        e,
+        stack,
+        context: 'LogisticsState.loadHistory($itemId)',
+      );
+    }
+  }
+
+  /// Ajouter un commentaire d'équipe sur un document logistique.
+  Future<void> addComment({
+    required String itemId,
+    required String text,
+    required String authorName,
+  }) async {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return;
+    final entry = ActionHistoryEntry(
+      userName: authorName,
+      action: 'COMMENT',
+      timestamp: DateTime.now(),
+      details: trimmed,
+    );
+    _historyCache[itemId] = [...(_historyCache[itemId] ?? const []), entry];
+    notifyListeners();
+    await _supabase.insertHistoryEntry(entry: entry, logisticsItemId: itemId);
+  }
+
+  // ─── Corbeille de documents ─────────────────────────────────────────────
+  //
+  // Retirer un fichier d'un document logistique ne le détruit pas : il
+  // reste attaché (marqué `removedAt`), récupérable depuis la Corbeille
+  // tant qu'il n'est pas supprimé définitivement.
+
+  /// Tous les fichiers retirés, tous documents confondus (actifs ou déjà
+  /// à la corbeille), avec le document logistique auquel chacun appartient.
+  List<({LogisticsItem item, AttachedFile file})> get removedDocuments {
+    final result = <({LogisticsItem item, AttachedFile file})>[];
+    for (final it in _items) {
+      for (final f in it.files) {
+        if (f.isRemoved) result.add((item: it, file: f));
+      }
+    }
+    return List.unmodifiable(result);
+  }
+
+  /// Retire un fichier déjà persisté d'un document logistique (corbeille,
+  /// pas de suppression définitive). Les fichiers jamais uploadés (sans
+  /// `storagePath`, encore en cours d'édition) doivent être retirés
+  /// localement par l'écran de formulaire, sans passer par ici.
+  Future<void> removeDocument({
+    required String itemId,
+    required String storagePath,
+    required String actionUserName,
+  }) async {
+    final idx = _items.indexWhere((i) => i.id == itemId);
+    if (idx == -1) return;
+    final old = _items[idx];
+    final updatedFiles = old.files
+        .map(
+          (f) => f.storagePath == storagePath
+              ? f.copyWith(removedAt: DateTime.now())
+              : f,
+        )
+        .toList();
+    _items[idx] = old.copyWith(files: updatedFiles);
+    notifyListeners();
+    await _supabase.updateLogisticsItem(id: itemId, files: updatedFiles);
+    await _supabase.insertHistoryEntry(
+      entry: ActionHistoryEntry(
+        userName: actionUserName,
+        action: 'DOCUMENT_REMOVE',
+        timestamp: DateTime.now(),
+        details: 'Fichier retiré (corbeille).',
+      ),
+      logisticsItemId: itemId,
+    );
+  }
+
+  /// Restaure un fichier précédemment retiré.
+  Future<void> restoreDocument({
+    required String itemId,
+    required String storagePath,
+    required String actionUserName,
+  }) async {
+    final idx = _items.indexWhere((i) => i.id == itemId);
+    if (idx == -1) return;
+    final old = _items[idx];
+    final updatedFiles = old.files
+        .map(
+          (f) => f.storagePath == storagePath
+              ? f.copyWith(clearRemovedAt: true)
+              : f,
+        )
+        .toList();
+    _items[idx] = old.copyWith(files: updatedFiles);
+    notifyListeners();
+    await _supabase.updateLogisticsItem(id: itemId, files: updatedFiles);
+    await _supabase.insertHistoryEntry(
+      entry: ActionHistoryEntry(
+        userName: actionUserName,
+        action: 'DOCUMENT_RESTORE',
+        timestamp: DateTime.now(),
+        details: 'Fichier restauré depuis la corbeille.',
+      ),
+      logisticsItemId: itemId,
+    );
+  }
+
+  /// Supprime définitivement un fichier retiré : l'entrée disparaît du
+  /// document et le fichier est effacé du bucket Storage.
+  Future<void> permanentlyDeleteDocument({
+    required String itemId,
+    required String storagePath,
+  }) async {
+    final idx = _items.indexWhere((i) => i.id == itemId);
+    if (idx == -1) return;
+    final old = _items[idx];
+    final updatedFiles = old.files
+        .where((f) => f.storagePath != storagePath)
+        .toList();
+    _items[idx] = old.copyWith(files: updatedFiles);
+    notifyListeners();
+    await _supabase.updateLogisticsItem(id: itemId, files: updatedFiles);
+    await _supabase.deleteDocumentFromStorage(storagePath);
   }
 }

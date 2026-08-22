@@ -8,6 +8,8 @@ class AttachedFile {
   final bool isScanned; // true si obtenu via le scanner de documents
   final String?
   storagePath; // Chemin dans le bucket Supabase Storage une fois uploadé
+  final DateTime?
+  removedAt; // Date de retrait d'un dossier — corbeille au niveau document
 
   const AttachedFile({
     required this.name,
@@ -16,7 +18,13 @@ class AttachedFile {
     this.bytes,
     this.isScanned = false,
     this.storagePath,
+    this.removedAt,
   });
+
+  /// true si ce document a été retiré d'un dossier (candidat/logistique)
+  /// mais conservé en corbeille — récupérable via [CandidatesState.restoreDocument]
+  /// ou [LogisticsState.restoreDocument].
+  bool get isRemoved => removedAt != null;
 
   AttachedFile copyWith({
     String? name,
@@ -25,6 +33,8 @@ class AttachedFile {
     List<int>? bytes,
     bool? isScanned,
     String? storagePath,
+    DateTime? removedAt,
+    bool clearRemovedAt = false,
   }) {
     return AttachedFile(
       name: name ?? this.name,
@@ -33,6 +43,7 @@ class AttachedFile {
       bytes: bytes ?? this.bytes,
       isScanned: isScanned ?? this.isScanned,
       storagePath: storagePath ?? this.storagePath,
+      removedAt: clearRemovedAt ? null : (removedAt ?? this.removedAt),
     );
   }
 
@@ -42,6 +53,7 @@ class AttachedFile {
     'sizeBytes': sizeBytes,
     'isScanned': isScanned,
     'storagePath': storagePath,
+    'removedAt': removedAt?.toIso8601String(),
   };
 
   factory AttachedFile.fromJson(Map<String, dynamic> json) {
@@ -51,14 +63,55 @@ class AttachedFile {
       sizeBytes: json['sizeBytes'] as int? ?? 0,
       isScanned: json['isScanned'] as bool? ?? false,
       storagePath: json['storagePath'] as String?,
+      removedAt: json['removedAt'] != null
+          ? DateTime.parse(json['removedAt'] as String)
+          : null,
     );
   }
+
+  /// Règles de validation appliquées à tout fichier avant upload — source
+  /// unique de vérité, référencée par le sélecteur de fichiers, le scanner
+  /// et le service d'upload (défense en profondeur).
+  static const int maxSizeBytes = 15 * 1024 * 1024; // 15 Mo
+  static const List<String> allowedExtensions = [
+    'pdf',
+    'doc',
+    'docx',
+    'xls',
+    'xlsx',
+    'ppt',
+    'pptx',
+    'txt',
+    'jpg',
+    'jpeg',
+    'png',
+    'webp',
+    'gif',
+    'zip',
+    'rar',
+  ];
+
+  /// Message d'erreur si ce fichier ne respecte pas les règles d'upload
+  /// (type ou taille), ou `null` s'il est valide.
+  String? get validationError {
+    if (!allowedExtensions.contains(extension.toLowerCase())) {
+      return '$name : type de fichier non autorisé (.$extension)';
+    }
+    if (sizeBytes > maxSizeBytes) {
+      final maxMb = (maxSizeBytes / (1024 * 1024)).toStringAsFixed(0);
+      return '$name : fichier trop volumineux (max $maxMb Mo)';
+    }
+    return null;
+  }
+
+  bool get isValid => validationError == null;
 
   // Taille lisible par l'humain
   String get readableSize {
     if (sizeBytes < 1024) return '$sizeBytes o';
-    if (sizeBytes < 1024 * 1024)
+    if (sizeBytes < 1024 * 1024) {
       return '${(sizeBytes / 1024).toStringAsFixed(1)} Ko';
+    }
     return '${(sizeBytes / (1024 * 1024)).toStringAsFixed(1)} Mo';
   }
 

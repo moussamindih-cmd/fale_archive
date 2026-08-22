@@ -28,23 +28,6 @@ class _SubmitArchiveScreenState extends State<SubmitArchiveScreen> {
 
   final List<AttachedFile> _attachedFiles = [];
 
-  static const List<String> _allowedExtensions = [
-    'pdf',
-    'doc',
-    'docx',
-    'xls',
-    'xlsx',
-    'ppt',
-    'pptx',
-    'txt',
-    'png',
-    'jpg',
-    'jpeg',
-    'webp',
-    'zip',
-    'rar',
-  ];
-
   @override
   void initState() {
     super.initState();
@@ -67,24 +50,37 @@ class _SubmitArchiveScreenState extends State<SubmitArchiveScreen> {
       final result = await FilePicker.platform.pickFiles(
         allowMultiple: true,
         type: FileType.custom,
-        allowedExtensions: _allowedExtensions,
+        allowedExtensions: AttachedFile.allowedExtensions,
         withData: true,
       );
       if (result != null && result.files.isNotEmpty) {
+        final rejected = <String>[];
         setState(() {
           for (final f in result.files) {
-            if (!_attachedFiles.any((af) => af.name == f.name)) {
-              _attachedFiles.add(
-                AttachedFile(
-                  name: f.name,
-                  extension: f.extension?.toLowerCase() ?? '',
-                  sizeBytes: f.size,
-                  bytes: f.bytes,
-                ),
-              );
+            if (_attachedFiles.any((af) => af.name == f.name)) continue;
+            final candidate = AttachedFile(
+              name: f.name,
+              extension: f.extension?.toLowerCase() ?? '',
+              sizeBytes: f.size,
+              bytes: f.bytes,
+            );
+            final error = candidate.validationError;
+            if (error != null) {
+              rejected.add(error);
+            } else {
+              _attachedFiles.add(candidate);
             }
           }
         });
+        if (rejected.isNotEmpty && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(rejected.join('\n')),
+              backgroundColor: kDanger,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
       }
     } finally {
       setState(() => _isPickingFiles = false);

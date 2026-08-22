@@ -6,13 +6,14 @@ class DailyArchive {
   final String employeeId;
   final String employeeName;
   final String jobTitle;
-  final DateTime archiveDate;   // Date du jour concerné
-  final String title;           // Titre de l'archive du jour
-  final String summary;         // Résumé de ce qui a été archivé
-  final String category;        // Catégorie automatique selon le poste
-  final int documentCount;      // Nombre de pièces numérisées / documents
+  final DateTime archiveDate; // Date du jour concerné
+  final String title; // Titre de l'archive du jour
+  final String summary; // Résumé de ce qui a été archivé
+  final String category; // Catégorie automatique selon le poste
+  final int documentCount; // Nombre de pièces numérisées / documents
   final List<AttachedFile> files; // Fichiers joints (PDF, Word, Excel...)
-  final String physicalLocation; // Emplacement physique (ex: Armoire B > Rayon 2 > Boîte 14)
+  final String
+  physicalLocation; // Emplacement physique (ex: Armoire B > Rayon 2 > Boîte 14)
   final DateTime submittedAt;
   final DateTime? deletedAt;
 
@@ -49,8 +50,12 @@ class DailyArchive {
   int get daysUntilDeletion {
     if (deletedAt == null) return 0;
     final deletionDate = deletedAt!.add(const Duration(days: 7));
-    final remaining = deletionDate.difference(DateTime.now()).inDays;
-    return remaining > 0 ? remaining : 0;
+    final remaining = deletionDate.difference(DateTime.now());
+    if (remaining.isNegative) return 0;
+    // Arrondi au jour supérieur : juste après suppression, il reste bien
+    // "7 jours" affichés, pas 6 (troncature de la durée résiduelle de
+    // 6j 23h59 par .inDays).
+    return (remaining.inHours / 24).ceil();
   }
 
   bool get isToday {
@@ -75,11 +80,11 @@ class DailyArchive {
       employeeId: employeeId ?? this.employeeId,
       employeeName: employeeName ?? this.employeeName,
       jobTitle: jobTitle ?? this.jobTitle,
-      archiveDate: this.archiveDate,
-      title: this.title,
-      summary: this.summary,
-      category: this.category,
-      documentCount: this.documentCount,
+      archiveDate: archiveDate,
+      title: title,
+      summary: summary,
+      category: category,
+      documentCount: documentCount,
       submittedAt: submittedAt ?? this.submittedAt,
       deletedAt: deletedAt ?? this.deletedAt,
     );
@@ -113,7 +118,9 @@ class DailyArchive {
       documentCount: json['documentCount'] as int,
       physicalLocation: json['physicalLocation'] as String? ?? '',
       submittedAt: DateTime.parse(json['submittedAt'] as String),
-      deletedAt: json['deleted_at'] != null ? DateTime.parse(json['deleted_at'] as String) : null,
+      deletedAt: json['deleted_at'] != null
+          ? DateTime.parse(json['deleted_at'] as String)
+          : null,
     );
   }
 }

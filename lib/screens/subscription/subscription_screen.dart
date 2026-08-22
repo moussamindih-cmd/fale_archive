@@ -52,19 +52,27 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
             ),
             actions: [
               IconButton(
-                icon: Icon(Icons.refresh_rounded, color: isDark ? kDarkTextPrimary : kTextPrimary),
+                icon: Icon(
+                  Icons.refresh_rounded,
+                  color: isDark ? kDarkTextPrimary : kTextPrimary,
+                ),
                 tooltip: 'Actualiser',
-                onPressed: () => widget.subscriptionState.refresh(widget.organizationId),
+                onPressed: () =>
+                    widget.subscriptionState.refresh(widget.organizationId),
               ),
             ],
           ),
           body: sub.isLoading
               ? const Center(child: CircularProgressIndicator())
               : RefreshIndicator(
-                  onRefresh: () => widget.subscriptionState.refresh(widget.organizationId),
+                  onRefresh: () =>
+                      widget.subscriptionState.refresh(widget.organizationId),
                   child: SingleChildScrollView(
                     physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 16,
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -88,23 +96,24 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     final status = sub.info.status;
 
     final (gradientColors, iconBg) = switch (status) {
-      SubscriptionStatus.paid => active?.isInGracePeriod == true
-          ? (
-              [const Color(0xFFF59E0B), const Color(0xFFD97706)],
-              Colors.white.withValues(alpha: 0.2),
-            )
-          : (
-              [const Color(0xFF059669), const Color(0xFF10B981)],
-              Colors.white.withValues(alpha: 0.2),
-            ),
+      SubscriptionStatus.paid =>
+        active?.isInGracePeriod == true
+            ? (
+                [const Color(0xFFF59E0B), const Color(0xFFD97706)],
+                Colors.white.withValues(alpha: 0.2),
+              )
+            : (
+                [const Color(0xFF059669), const Color(0xFF10B981)],
+                Colors.white.withValues(alpha: 0.2),
+              ),
       SubscriptionStatus.pending => (
-          [const Color(0xFFF59E0B), const Color(0xFFD97706)],
-          Colors.white.withValues(alpha: 0.2),
-        ),
+        [const Color(0xFFF59E0B), const Color(0xFFD97706)],
+        Colors.white.withValues(alpha: 0.2),
+      ),
       _ => (
-          [const Color(0xFF475569), const Color(0xFF334155)],
-          Colors.white.withValues(alpha: 0.2),
-        ),
+        [const Color(0xFF475569), const Color(0xFF334155)],
+        Colors.white.withValues(alpha: 0.2),
+      ),
     };
 
     return Container(
@@ -132,7 +141,10 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
             children: [
               Container(
                 padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: iconBg, shape: BoxShape.circle),
+                decoration: BoxDecoration(
+                  color: iconBg,
+                  shape: BoxShape.circle,
+                ),
                 child: Icon(
                   status == SubscriptionStatus.paid
                       ? Icons.workspace_premium_rounded
@@ -180,7 +192,10 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                     Icons.calendar_today_rounded,
                     'Expire le',
                     active.expiresAt != null
-                        ? DateFormat('dd MMMM yyyy', 'fr_FR').format(active.expiresAt!)
+                        ? DateFormat(
+                            'dd MMMM yyyy',
+                            'fr_FR',
+                          ).format(active.expiresAt!)
                         : '—',
                   ),
                   const SizedBox(height: 10),
@@ -208,7 +223,11 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.warning_amber_rounded, color: Color(0xFFD97706), size: 20),
+                    const Icon(
+                      Icons.warning_amber_rounded,
+                      color: Color(0xFFD97706),
+                      size: 20,
+                    ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
@@ -237,12 +256,20 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         const SizedBox(width: 8),
         Text(
           '$label : ',
-          style: GoogleFonts.outfit(fontSize: 13, color: Colors.white.withValues(alpha: 0.8), fontWeight: FontWeight.w500),
+          style: GoogleFonts.outfit(
+            fontSize: 13,
+            color: Colors.white.withValues(alpha: 0.8),
+            fontWeight: FontWeight.w500,
+          ),
         ),
         Expanded(
           child: Text(
             value,
-            style: GoogleFonts.outfit(fontSize: 13, color: Colors.white, fontWeight: FontWeight.w700),
+            style: GoogleFonts.outfit(
+              fontSize: 13,
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ),
       ],
@@ -252,7 +279,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   // ─── Bouton d'action principal ────────────────────────────────────────────
   Widget _buildActionButton(SubscriptionState sub, bool isDark) {
     final isActive = sub.isActive;
-    final label = isActive ? 'Gérer ou Renouveler l\'abonnement' : 'Souscrire à un forfait';
+    final label = isActive
+        ? 'Gérer ou Renouveler l\'abonnement'
+        : 'Souscrire à un forfait';
 
     return Container(
       decoration: BoxDecoration(
@@ -262,7 +291,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
             color: kPrimaryColor.withValues(alpha: 0.25),
             blurRadius: 16,
             offset: const Offset(0, 6),
-          )
+          ),
         ],
       ),
       child: ElevatedButton.icon(
@@ -297,7 +326,11 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           padding: const EdgeInsets.all(24),
           child: Column(
             children: [
-              Icon(Icons.receipt_long_outlined, size: 44, color: isDark ? kDarkTextMuted : kTextMuted),
+              Icon(
+                Icons.receipt_long_outlined,
+                size: 44,
+                color: isDark ? kDarkTextMuted : kTextMuted,
+              ),
               const SizedBox(height: 10),
               Text(
                 'Aucune transaction enregistrée',
@@ -331,9 +364,10 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           physics: const NeverScrollableScrollPhysics(),
           itemCount: sub.history.length,
           separatorBuilder: (_, __) => const SizedBox(height: 10),
-          itemBuilder: (_, i) => _TransactionCard(tx: sub.history[i], isDark: isDark).animate().fade(
-                delay: Duration(milliseconds: 60 * i),
-              ),
+          itemBuilder: (_, i) => _TransactionCard(
+            tx: sub.history[i],
+            isDark: isDark,
+          ).animate().fade(delay: Duration(milliseconds: 60 * i)),
         ),
       ],
     );
@@ -432,7 +466,11 @@ class _TransactionCard extends StatelessWidget {
           const SizedBox(height: 10),
           Row(
             children: [
-              Icon(Icons.access_time_rounded, size: 13, color: isDark ? kDarkTextMuted : kTextMuted),
+              Icon(
+                Icons.access_time_rounded,
+                size: 13,
+                color: isDark ? kDarkTextMuted : kTextMuted,
+              ),
               const SizedBox(width: 6),
               Text(
                 DateFormat('dd/MM/yyyy HH:mm', 'fr_FR').format(tx.createdAt),

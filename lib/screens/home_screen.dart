@@ -12,6 +12,7 @@ import '../models/employee.dart';
 import '../widgets/role_based_nav.dart';
 import '../widgets/global_search_dialog.dart';
 import '../widgets/mesh_background.dart';
+import '../services/data_export_service.dart';
 import 'login_screen.dart';
 import 'submit_archive_screen.dart';
 import 'history_screen.dart';
@@ -187,7 +188,9 @@ class _HomeScreenState extends State<HomeScreen> {
           return Container(
             margin: const EdgeInsets.only(left: 8),
             decoration: BoxDecoration(
-              color: (isDark ? Colors.white : kTextPrimary).withValues(alpha: 0.08),
+              color: (isDark ? Colors.white : kTextPrimary).withValues(
+                alpha: 0.08,
+              ),
               borderRadius: BorderRadius.circular(10),
             ),
             child: IconButton(
@@ -231,6 +234,28 @@ class _HomeScreenState extends State<HomeScreen> {
             context,
             MaterialPageRoute(
               builder: (_) => ReportsScreen(
+                appState: _appState,
+                candidatesState: _candidatesState,
+                logisticsState: _logisticsState,
+              ),
+            ),
+          ),
+        ),
+        // Corbeille : restaurer archives, candidats, documents logistiques
+        // et pièces jointes supprimés (accessible à tous — n'importe quel
+        // rôle peut supprimer un dossier, donc n'importe qui doit pouvoir
+        // le restaurer).
+        IconButton(
+          tooltip: 'Corbeille',
+          icon: Icon(
+            Icons.delete_outline_rounded,
+            color: isDark ? kDarkTextPrimary : kTextPrimary,
+            size: 22,
+          ),
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => TrashScreen(
                 appState: _appState,
                 candidatesState: _candidatesState,
                 logisticsState: _logisticsState,
@@ -442,6 +467,44 @@ class _HomeScreenState extends State<HomeScreen> {
     Navigator.of(
       context,
     ).pushReplacement(MaterialPageRoute(builder: (_) => const LoginScreen()));
+  }
+
+  /// Export JSON complet des données de l'organisation (candidats,
+  /// logistique, archives — y compris la corbeille) pour audit, portabilité
+  /// ou sauvegarde externe.
+  Future<void> _exportAllData(BuildContext context) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+    bool saved = false;
+    String? error;
+    try {
+      saved = await DataExportService.exportAndSave(
+        candidates: _candidatesState.allCandidatesIncludingDeleted,
+        logisticsItems: [
+          ..._logisticsState.items,
+          ..._logisticsState.deletedItems,
+        ],
+        archives: [..._appState.allArchives, ..._appState.deletedArchives],
+      );
+    } catch (e) {
+      error = e.toString();
+    }
+    if (!context.mounted) return;
+    Navigator.pop(context); // Ferme l'indicateur de chargement
+    final message = error != null
+        ? 'Échec de l\'export : $error'
+        : saved
+        ? 'Export téléchargé avec succès.'
+        : 'Export annulé.';
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: error != null ? kDanger : kSuccess,
+      ),
+    );
   }
 
   // ── Corps par rôle ───────────────────────────────────────────────────────
@@ -782,12 +845,27 @@ class _HomeScreenState extends State<HomeScreen> {
                     icon: Icons.delete_outline_rounded,
                     iconColor: kDanger,
                     title: 'Corbeille',
-                    subtitle: 'Gérer les archives supprimées récemment',
+                    subtitle:
+                        'Récupérer archives, candidats et documents supprimés',
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (_) => TrashScreen(appState: _appState),
+                        builder: (_) => TrashScreen(
+                          appState: _appState,
+                          candidatesState: _candidatesState,
+                          logisticsState: _logisticsState,
+                        ),
                       ),
                     ),
+                    isDark: isDark,
+                  ),
+                  const SizedBox(height: 10),
+                  _profileOptionCard(
+                    icon: Icons.download_for_offline_outlined,
+                    iconColor: kPrimaryColor,
+                    title: 'Exporter toutes les données',
+                    subtitle:
+                        'Télécharger un export JSON complet (candidats, logistique, archives)',
+                    onTap: () => _exportAllData(context),
                     isDark: isDark,
                   ),
                   const SizedBox(height: 10),

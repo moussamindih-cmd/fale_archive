@@ -8,8 +8,10 @@ class Employee {
   final String? personalEmail;
   final String? avatarUrl;
   final String password; // stocké en clair pour la démo (en prod: hashé)
-  final String jobTitle; // Secrétaire | Comptable | Gestionnaire | Conseiller Principal | Conseiller Adjoint
-  final UserRole role; // Rôle fonctionnel : admin, directeurAdministratif, rh, employe
+  final String
+  jobTitle; // Secrétaire | Comptable | Gestionnaire | Conseiller Principal | Conseiller Adjoint
+  final UserRole
+  role; // Rôle fonctionnel : admin, directeurAdministratif, rh, employe
   final bool isActive;
   final String organizationId;
   final DateTime createdAt;

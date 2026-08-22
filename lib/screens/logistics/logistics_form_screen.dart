@@ -54,7 +54,7 @@ class _LogisticsFormScreenState extends State<LogisticsFormScreen> {
     if (item != null) {
       _docType = item.documentType;
       _issueDate = item.issueDate;
-      _files.addAll(item.files);
+      _files.addAll(item.files.where((f) => !f.isRemoved));
     }
   }
 
@@ -82,6 +82,28 @@ class _LogisticsFormScreenState extends State<LogisticsFormScreen> {
     if (files.isNotEmpty) setState(() => _files.addAll(files));
   }
 
+  /// Retire un fichier. S'il est déjà persisté (storagePath renseigné), il
+  /// part en corbeille (récupérable) au lieu d'être perdu immédiatement.
+  Future<void> _removeFile(int index) async {
+    final file = _files[index];
+    setState(() => _files.removeAt(index));
+    if (file.storagePath == null || widget.editingItem == null) return;
+    await widget.logisticsState.removeDocument(
+      itemId: widget.editingItem!.id,
+      storagePath: file.storagePath!,
+      actionUserName: widget.currentUserName,
+    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('"${file.name}" déplacé vers la corbeille.'),
+          backgroundColor: const Color(0xFF64748B),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
   Future<void> _handleSubmit() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
@@ -89,8 +111,9 @@ class _LogisticsFormScreenState extends State<LogisticsFormScreen> {
 
     final amount = double.tryParse(_amountCtrl.text.replaceAll(' ', ''));
 
+    String? error;
     if (_isEditing) {
-      widget.logisticsState.updateItem(
+      await widget.logisticsState.updateItem(
         id: widget.editingItem!.id,
         documentType: _docType,
         reference: _refCtrl.text,
@@ -102,7 +125,7 @@ class _LogisticsFormScreenState extends State<LogisticsFormScreen> {
         actionUserName: widget.currentUserName,
       );
     } else {
-      widget.logisticsState.addItem(
+      error = await widget.logisticsState.addItem(
         documentType: _docType,
         reference: _refCtrl.text,
         amount: amount,
@@ -116,6 +139,19 @@ class _LogisticsFormScreenState extends State<LogisticsFormScreen> {
     }
 
     if (!mounted) return;
+    if (error != null) {
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error),
+          backgroundColor: const Color(0xFFEF4444),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          margin: const EdgeInsets.all(16),
+        ),
+      );
+      return;
+    }
     Navigator.pop(context);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -341,8 +377,7 @@ class _LogisticsFormScreenState extends State<LogisticsFormScreen> {
                           ..._files.asMap().entries.map(
                             (e) => DocumentPreview(
                               file: e.value,
-                              onRemove: () =>
-                                  setState(() => _files.removeAt(e.key)),
+                              onRemove: () => _removeFile(e.key),
                             ),
                           ),
                           OutlinedButton.icon(

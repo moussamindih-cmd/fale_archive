@@ -22,7 +22,8 @@ class InAppDocumentViewer extends StatefulWidget {
 }
 
 class _InAppDocumentViewerState extends State<InAppDocumentViewer> {
-  final TransformationController _transformController = TransformationController();
+  final TransformationController _transformController =
+      TransformationController();
   double _scale = 1.0;
 
   @override
@@ -95,7 +96,9 @@ class _InAppDocumentViewerState extends State<InAppDocumentViewer> {
               decoration: BoxDecoration(
                 border: Border(
                   bottom: BorderSide(
-                    color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                    color: isDark
+                        ? const Color(0xFF334155)
+                        : const Color(0xFFE2E8F0),
                   ),
                 ),
               ),
@@ -107,7 +110,11 @@ class _InAppDocumentViewerState extends State<InAppDocumentViewer> {
                       color: const Color(0xFF2563EB).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(Icons.description_rounded, color: Color(0xFF2563EB), size: 20),
+                    child: const Icon(
+                      Icons.description_rounded,
+                      color: Color(0xFF2563EB),
+                      size: 20,
+                    ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -119,7 +126,9 @@ class _InAppDocumentViewerState extends State<InAppDocumentViewer> {
                           style: GoogleFonts.outfit(
                             fontWeight: FontWeight.w700,
                             fontSize: 15,
-                            color: isDark ? Colors.white : const Color(0xFF0F172A),
+                            color: isDark
+                                ? Colors.white
+                                : const Color(0xFF0F172A),
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -128,7 +137,9 @@ class _InAppDocumentViewerState extends State<InAppDocumentViewer> {
                           '${file.extension.toUpperCase()} • ${file.formattedSize}',
                           style: GoogleFonts.outfit(
                             fontSize: 12,
-                            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                            color: isDark
+                                ? const Color(0xFF94A3B8)
+                                : const Color(0xFF64748B),
                           ),
                         ),
                       ],
@@ -168,12 +179,14 @@ class _InAppDocumentViewerState extends State<InAppDocumentViewer> {
             // Viewer Content
             Expanded(
               child: ClipRRect(
-                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(20)),
+                borderRadius: const BorderRadius.vertical(
+                  bottom: Radius.circular(20),
+                ),
                 child: Container(
-                  color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
-                  child: Center(
-                    child: _buildContent(file, isDark),
-                  ),
+                  color: isDark
+                      ? const Color(0xFF0F172A)
+                      : const Color(0xFFF8FAFC),
+                  child: Center(child: _buildContent(file, isDark)),
                 ),
               ),
             ),
@@ -207,7 +220,10 @@ class _InAppDocumentViewerState extends State<InAppDocumentViewer> {
             const SizedBox(height: 16),
             Text(
               'Aperçu de l\'image scannée',
-              style: GoogleFonts.outfit(fontWeight: FontWeight.w700, fontSize: 18),
+              style: GoogleFonts.outfit(
+                fontWeight: FontWeight.w700,
+                fontSize: 18,
+              ),
             ),
             const SizedBox(height: 6),
             Text(
@@ -246,7 +262,9 @@ class _InAppDocumentViewerState extends State<InAppDocumentViewer> {
               shape: BoxShape.circle,
             ),
             child: Icon(
-              isPdf ? Icons.picture_as_pdf_rounded : Icons.insert_drive_file_rounded,
+              isPdf
+                  ? Icons.picture_as_pdf_rounded
+                  : Icons.insert_drive_file_rounded,
               size: 48,
               color: color,
             ),
@@ -255,7 +273,10 @@ class _InAppDocumentViewerState extends State<InAppDocumentViewer> {
           Text(
             file.name,
             textAlign: TextAlign.center,
-            style: GoogleFonts.outfit(fontWeight: FontWeight.w700, fontSize: 16),
+            style: GoogleFonts.outfit(
+              fontWeight: FontWeight.w700,
+              fontSize: 16,
+            ),
           ),
           const SizedBox(height: 6),
           Text(

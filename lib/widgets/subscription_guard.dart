@@ -30,10 +30,13 @@ class SubscriptionGuard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (state.isActive) return child;
-    return fallback ?? LockedFeatureBanner(onSubscribe: () {
-      // Navigation vers l'écran d'abonnement
-      Navigator.of(context).pushNamed('/subscription');
-    });
+    return fallback ??
+        LockedFeatureBanner(
+          onSubscribe: () {
+            // Navigation vers l'écran d'abonnement
+            Navigator.of(context).pushNamed('/subscription');
+          },
+        );
   }
 }
 
@@ -58,7 +61,9 @@ class LockedFeatureBanner extends StatelessWidget {
         ),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-            color: kPrimaryColor.withValues(alpha: 0.2), width: 1.5),
+          color: kPrimaryColor.withValues(alpha: 0.2),
+          width: 1.5,
+        ),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -70,26 +75,30 @@ class LockedFeatureBanner extends StatelessWidget {
               color: kPrimaryColor.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.lock_outline_rounded,
-                color: kPrimaryColor, size: 28),
+            child: const Icon(
+              Icons.lock_outline_rounded,
+              color: kPrimaryColor,
+              size: 28,
+            ),
           ),
           const SizedBox(height: 16),
           Text(
             'Fonctionnalité Premium',
             style: GoogleFonts.outfit(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                color: kTextPrimary),
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: kTextPrimary,
+            ),
           ),
           const SizedBox(height: 8),
           Text(
-            message ??
-                'Cette fonctionnalité nécessite un abonnement actif.',
+            message ?? 'Cette fonctionnalité nécessite un abonnement actif.',
             textAlign: TextAlign.center,
             style: GoogleFonts.outfit(
-                fontSize: 14,
-                color: kTextSecondary,
-                fontWeight: FontWeight.w500),
+              fontSize: 14,
+              color: kTextSecondary,
+              fontWeight: FontWeight.w500,
+            ),
           ),
           const SizedBox(height: 20),
           if (onSubscribe != null)
@@ -119,32 +128,32 @@ class SubscriptionStatusBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final (color, icon, label) = switch (status) {
       SubscriptionStatus.paid => (
-          const Color(0xFF10B981),
-          Icons.check_circle_rounded,
-          daysRemaining != null && daysRemaining! <= 5
-              ? 'Expire dans ${daysRemaining}j'
-              : 'Actif',
-        ),
+        const Color(0xFF10B981),
+        Icons.check_circle_rounded,
+        daysRemaining != null && daysRemaining! <= 5
+            ? 'Expire dans ${daysRemaining}j'
+            : 'Actif',
+      ),
       SubscriptionStatus.pending => (
-          const Color(0xFFF59E0B),
-          Icons.pending_rounded,
-          'En attente',
-        ),
+        const Color(0xFFF59E0B),
+        Icons.pending_rounded,
+        'En attente',
+      ),
       SubscriptionStatus.failed => (
-          const Color(0xFFEF4444),
-          Icons.cancel_rounded,
-          'Échoué',
-        ),
+        const Color(0xFFEF4444),
+        Icons.cancel_rounded,
+        'Échoué',
+      ),
       SubscriptionStatus.expired => (
-          const Color(0xFF94A3B8),
-          Icons.timer_off_rounded,
-          'Expiré',
-        ),
+        const Color(0xFF94A3B8),
+        Icons.timer_off_rounded,
+        'Expiré',
+      ),
       SubscriptionStatus.none => (
-          const Color(0xFF94A3B8),
-          Icons.remove_circle_outline_rounded,
-          'Aucun',
-        ),
+        const Color(0xFF94A3B8),
+        Icons.remove_circle_outline_rounded,
+        'Aucun',
+      ),
     };
 
     return Container(
@@ -159,11 +168,14 @@ class SubscriptionStatusBadge extends StatelessWidget {
         children: [
           Icon(icon, size: 14, color: color),
           const SizedBox(width: 6),
-          Text(label,
-              style: GoogleFonts.outfit(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: color)),
+          Text(
+            label,
+            style: GoogleFonts.outfit(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
         ],
       ),
     );

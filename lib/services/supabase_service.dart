@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'error_reporting_service.dart';
 import '../models/employee.dart';
 import '../models/attached_file.dart';
 import '../models/daily_archive.dart';
@@ -63,6 +64,10 @@ class SupabaseService {
         'full_name': fullName.trim(),
         'email': email.trim().toLowerCase(),
         'personal_email': personalEmail?.trim().toLowerCase(),
+        // Colonne héritée, non utilisée : l'authentification réelle passe
+        // entièrement par Supabase Auth (signInWithPassword ci-dessous),
+        // jamais par ce champ. Laissée vide plutôt que supprimée tant que
+        // sa contrainte NOT NULL éventuelle côté DB n'est pas vérifiée.
         'password_hash': '',
         'job_title': role == UserRole.employe ? jobTitle : '',
         'role': role.name,
@@ -195,6 +200,17 @@ class SupabaseService {
     required AttachedFile file,
   }) async {
     if (file.storagePath != null || file.bytes == null) return file;
+    // Filet de sécurité : les points d'entrée (sélecteur de fichiers,
+    // scanner) valident déjà taille et type, mais on ne fait jamais
+    // confiance aveuglément à l'appelant pour un stockage permanent.
+    if (!file.isValid) {
+      ErrorReportingService.instance.report(
+        'uploadDocument refusé : ${file.validationError}',
+        null,
+        context: 'SupabaseService.uploadDocument',
+      );
+      return file;
+    }
     final organizationId = await _currentOrganizationId();
     if (organizationId == null) return file;
     final path =
@@ -215,6 +231,21 @@ class SupabaseService {
       return await _client.storage.from('documents').download(storagePath);
     } catch (e) {
       return null;
+    }
+  }
+
+  /// Supprimer définitivement un fichier du bucket Storage (irréversible —
+  /// à n'appeler qu'après confirmation utilisateur, depuis la corbeille de
+  /// documents).
+  Future<void> deleteDocumentFromStorage(String storagePath) async {
+    try {
+      await _client.storage.from('documents').remove([storagePath]);
+    } catch (e, stack) {
+      ErrorReportingService.instance.report(
+        e,
+        stack,
+        context: 'SupabaseService.deleteDocumentFromStorage($storagePath)',
+      );
     }
   }
 
@@ -268,6 +299,7 @@ class SupabaseService {
 
   Future<String?> insertArchive(DailyArchive archive) async {
     try {
+      final organizationId = await _currentOrganizationId();
       await _client.from('daily_archives').insert({
         'id': archive.id,
         'employee_id': archive.employeeId,
@@ -281,6 +313,7 @@ class SupabaseService {
         'physical_location': archive.physicalLocation,
         'submitted_at': archive.submittedAt.toIso8601String(),
         'documents': archive.files.map((f) => f.toJson()).toList(),
+        if (organizationId != null) 'organization_id': organizationId,
       });
       return null;
     } catch (e) {
@@ -300,6 +333,7 @@ class SupabaseService {
 
   Future<String?> insertCandidate(Candidate candidate) async {
     try {
+      final organizationId = await _currentOrganizationId();
       await _client.from('candidates').insert({
         'id': candidate.id,
         'full_name': candidate.fullName,
@@ -311,6 +345,7 @@ class SupabaseService {
         'rh_notes': candidate.rhNotes,
         'is_deleted': false,
         'documents': candidate.documents.map((f) => f.toJson()).toList(),
+        if (organizationId != null) 'organization_id': organizationId,
       });
       return null;
     } catch (e) {
@@ -351,7 +386,24 @@ class SupabaseService {
   }
 
   Future<void> softDeleteCandidate(String id) async {
-    await _client.from('candidates').update({'is_deleted': true}).eq('id', id);
+    await _client
+        .from('candidates')
+        .update({
+          'is_deleted': true,
+          'deleted_at': DateTime.now().toIso8601String(),
+        })
+        .eq('id', id);
+  }
+
+  Future<void> restoreCandidate(String id) async {
+    await _client
+        .from('candidates')
+        .update({'is_deleted': false, 'deleted_at': null})
+        .eq('id', id);
+  }
+
+  Future<void> permanentlyDeleteCandidate(String id) async {
+    await _client.from('candidates').delete().eq('id', id);
   }
 
   // ─── Logistics ───────────────────────────────────────────────────────────
@@ -366,6 +418,7 @@ class SupabaseService {
 
   Future<String?> insertLogisticsItem(LogisticsItem item) async {
     try {
+      final organizationId = await _currentOrganizationId();
       await _client.from('logistics_items').insert({
         'id': item.id,
         'document_type': item.documentType.name,
@@ -380,6 +433,7 @@ class SupabaseService {
         'notes': item.notes,
         'is_deleted': false,
         'documents': item.files.map((f) => f.toJson()).toList(),
+        if (organizationId != null) 'organization_id': organizationId,
       });
       return null;
     } catch (e) {
@@ -434,8 +488,22 @@ class SupabaseService {
   Future<void> softDeleteLogisticsItem(String id) async {
     await _client
         .from('logistics_items')
-        .update({'is_deleted': true})
+        .update({
+          'is_deleted': true,
+          'deleted_at': DateTime.now().toIso8601String(),
+        })
         .eq('id', id);
+  }
+
+  Future<void> restoreLogisticsItem(String id) async {
+    await _client
+        .from('logistics_items')
+        .update({'is_deleted': false, 'deleted_at': null})
+        .eq('id', id);
+  }
+
+  Future<void> permanentlyDeleteLogisticsItem(String id) async {
+    await _client.from('logistics_items').delete().eq('id', id);
   }
 
   // ─── Action History ──────────────────────────────────────────────────────
@@ -446,16 +514,27 @@ class SupabaseService {
     String? logisticsItemId,
   }) async {
     try {
+      // `action_history_entries.organization_id` est NOT NULL côté Postgres
+      // — sans cette valeur, chaque entrée d'audit/commentaire échouait en
+      // silence (bug d'origine, invisible avant l'ajout du monitoring).
+      final organizationId = await _currentOrganizationId();
       await _client.from('action_history_entries').insert({
         'user_name': entry.userName,
         'action': entry.action,
         'details': entry.details,
         'timestamp': entry.timestamp.toIso8601String(),
+        if (organizationId != null) 'organization_id': organizationId,
         if (candidateId != null) 'candidate_id': candidateId,
         if (logisticsItemId != null) 'logistics_item_id': logisticsItemId,
       });
-    } catch (_) {
-      // Ne pas bloquer l'UI si le log échoue
+    } catch (e, stack) {
+      // Ne pas bloquer l'UI si le log échoue, mais ne jamais l'avaler en
+      // silence : une entrée d'audit manquante doit rester observable.
+      ErrorReportingService.instance.report(
+        e,
+        stack,
+        context: 'SupabaseService.insertHistoryEntry(action=${entry.action})',
+      );
     }
   }
 
@@ -465,6 +544,35 @@ class SupabaseService {
         .select()
         .order('timestamp', ascending: false)
         .limit(limit);
+    return (data as List)
+        .map(
+          (m) => ActionHistoryEntry(
+            userName: m['user_name'] as String,
+            action: m['action'] as String,
+            timestamp: DateTime.parse(m['timestamp'] as String),
+            details: m['details'] as String? ?? '',
+          ),
+        )
+        .toList();
+  }
+
+  /// Historique complet (actions système + commentaires) d'un candidat ou
+  /// d'un document logistique, dans l'ordre chronologique.
+  Future<List<ActionHistoryEntry>> fetchHistoryFor({
+    String? candidateId,
+    String? logisticsItemId,
+  }) async {
+    final data = candidateId != null
+        ? await _client
+              .from('action_history_entries')
+              .select()
+              .eq('candidate_id', candidateId)
+              .order('timestamp', ascending: true)
+        : await _client
+              .from('action_history_entries')
+              .select()
+              .eq('logistics_item_id', logisticsItemId!)
+              .order('timestamp', ascending: true);
     return (data as List)
         .map(
           (m) => ActionHistoryEntry(
@@ -636,6 +744,9 @@ class SupabaseService {
       ),
       rhNotes: m['rh_notes'] as String? ?? '',
       isDeleted: m['is_deleted'] as bool? ?? false,
+      deletedAt: m['deleted_at'] != null
+          ? DateTime.parse(m['deleted_at'] as String)
+          : null,
       documents: _parseDocuments(m['documents']),
     );
   }
@@ -660,6 +771,9 @@ class SupabaseService {
       validatedByName: m['validated_by_name'] as String? ?? '',
       notes: m['notes'] as String? ?? '',
       isDeleted: m['is_deleted'] as bool? ?? false,
+      deletedAt: m['deleted_at'] != null
+          ? DateTime.parse(m['deleted_at'] as String)
+          : null,
       files: _parseDocuments(m['documents']),
     );
   }

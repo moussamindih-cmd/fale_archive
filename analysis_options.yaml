@@ -16,11 +16,6 @@ analyzer:
     - windows/**
     - macos/**
     - linux/**
-    # Arborescences non atteignables depuis lib/main.dart (aucun import entrant).
-    # Les fichiers restent en place, ils ne sont simplement plus analysés.
-    - lib/presentation/**
-    - lib/core/**
-    - lib/data/**
 include: package:flutter_lints/flutter.yaml
 
 linter:

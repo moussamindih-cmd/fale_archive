@@ -8,16 +8,14 @@ import '../models/attached_file.dart';
 /// Sur mobile (Android/iOS) : idéalement connecté à cunning_document_scanner.
 /// Sur web/desktop : fallback vers file_picker (sélection d'images/PDF).
 class DocumentScannerService {
-  static final DocumentScannerService _instance = DocumentScannerService._internal();
+  static final DocumentScannerService _instance =
+      DocumentScannerService._internal();
   factory DocumentScannerService() => _instance;
   DocumentScannerService._internal();
 
-  /// Extensions acceptées pour le scan / import
-  static const List<String> _allowedExtensions = [
-    'pdf', 'jpg', 'jpeg', 'png', 'webp',
-  ];
-
-  /// Lance le flux de scan / import et retourne les fichiers obtenus.
+  /// Lance le flux de scan / import et retourne les fichiers obtenus
+  /// (déjà filtrés : les fichiers refusés par [AttachedFile.validationError]
+  /// sont exclus et signalés via une SnackBar).
   ///
   /// [context] : BuildContext pour afficher les dialogues.
   /// [allowMultiple] : si true, l'utilisateur peut importer plusieurs fichiers.
@@ -30,12 +28,34 @@ class DocumentScannerService {
     if (choice == null) return [];
     if (!context.mounted) return [];
 
-    switch (choice) {
-      case _ScanSource.camera:
-        return _scanWithCamera(context, allowMultiple: allowMultiple);
-      case _ScanSource.filePicker:
-        return _importFromFilePicker(allowMultiple: allowMultiple);
+    final picked = switch (choice) {
+      _ScanSource.camera => await _scanWithCamera(
+        context,
+        allowMultiple: allowMultiple,
+      ),
+      _ScanSource.filePicker => await _importFromFilePicker(
+        allowMultiple: allowMultiple,
+      ),
+    };
+
+    if (!context.mounted) return picked.where((f) => f.isValid).toList();
+    return _validate(context, picked);
+  }
+
+  /// Sépare les fichiers valides des rejetés et affiche une SnackBar
+  /// listant les rejets (taille ou type non autorisé).
+  List<AttachedFile> _validate(BuildContext context, List<AttachedFile> files) {
+    final rejected = files.where((f) => !f.isValid).toList();
+    if (rejected.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(rejected.map((f) => f.validationError).join('\n')),
+          backgroundColor: const Color(0xFFEF4444),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
+    return files.where((f) => f.isValid).toList();
   }
 
   /// Tentative de scan caméra.
@@ -57,7 +77,9 @@ class DocumentScannerService {
             'Le scan caméra nécessite un appareil physique.\n\n'
             'Sur ce simulateur, sélectionnez une image depuis vos fichiers pour simuler un scan.',
           ),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, false),
@@ -72,10 +94,7 @@ class DocumentScannerService {
       );
       if (proceed != true) return [];
     }
-    return _importFromFilePicker(
-      allowMultiple: allowMultiple,
-      imageOnly: true,
-    );
+    return _importFromFilePicker(allowMultiple: allowMultiple, imageOnly: true);
   }
 
   /// Import classique via file_picker
@@ -87,17 +106,21 @@ class DocumentScannerService {
       final result = await FilePicker.platform.pickFiles(
         allowMultiple: allowMultiple,
         type: imageOnly ? FileType.image : FileType.custom,
-        allowedExtensions: imageOnly ? null : _allowedExtensions,
+        allowedExtensions: imageOnly ? null : AttachedFile.allowedExtensions,
         withData: true,
       );
       if (result == null || result.files.isEmpty) return [];
-      return result.files.map((f) => AttachedFile(
-        name: f.name,
-        extension: (f.extension ?? 'bin').toLowerCase(),
-        sizeBytes: f.size,
-        bytes: f.bytes,
-        isScanned: imageOnly,
-      )).toList();
+      return result.files
+          .map(
+            (f) => AttachedFile(
+              name: f.name,
+              extension: (f.extension ?? 'bin').toLowerCase(),
+              sizeBytes: f.size,
+              bytes: f.bytes,
+              isScanned: imageOnly,
+            ),
+          )
+          .toList();
     } catch (_) {
       return [];
     }
@@ -126,9 +149,9 @@ class DocumentScannerService {
             const SizedBox(height: 20),
             Text(
               'Ajouter un document',
-              style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
+              style: Theme.of(
+                ctx,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 20),
             Row(

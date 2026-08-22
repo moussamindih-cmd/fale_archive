@@ -55,7 +55,9 @@ class _CandidateFormScreenState extends State<CandidateFormScreen> {
     _phoneCtrl = TextEditingController(text: c?.phone ?? '');
     _notesCtrl = TextEditingController(text: c?.rhNotes ?? '');
     _selectedPosition = c?.targetPosition;
-    if (c != null) _documents.addAll(c.documents);
+    if (c != null) {
+      _documents.addAll(c.documents.where((f) => !f.isRemoved));
+    }
   }
 
   @override
@@ -74,6 +76,28 @@ class _CandidateFormScreenState extends State<CandidateFormScreen> {
     }
   }
 
+  /// Retire un document. S'il est déjà persisté (storagePath renseigné), il
+  /// part en corbeille (récupérable) au lieu d'être perdu immédiatement.
+  Future<void> _removeDocument(int index) async {
+    final file = _documents[index];
+    setState(() => _documents.removeAt(index));
+    if (file.storagePath == null || widget.editingCandidate == null) return;
+    await widget.candidatesState.removeDocument(
+      candidateId: widget.editingCandidate!.id,
+      storagePath: file.storagePath!,
+      actionUserName: widget.currentUserName,
+    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('"${file.name}" déplacé vers la corbeille.'),
+          backgroundColor: const Color(0xFF64748B),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
   Future<void> _handleSubmit() async {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedPosition == null) {
@@ -88,8 +112,9 @@ class _CandidateFormScreenState extends State<CandidateFormScreen> {
     setState(() => _isLoading = true);
     await Future.delayed(const Duration(milliseconds: 500));
 
+    String? error;
     if (_isEditing) {
-      widget.candidatesState.updateCandidate(
+      await widget.candidatesState.updateCandidate(
         id: widget.editingCandidate!.id,
         fullName: _nameCtrl.text,
         targetPosition: _selectedPosition,
@@ -100,7 +125,7 @@ class _CandidateFormScreenState extends State<CandidateFormScreen> {
         actionUserName: widget.currentUserName,
       );
     } else {
-      widget.candidatesState.addCandidate(
+      error = await widget.candidatesState.addCandidate(
         fullName: _nameCtrl.text,
         targetPosition: _selectedPosition!,
         email: _emailCtrl.text,
@@ -112,6 +137,13 @@ class _CandidateFormScreenState extends State<CandidateFormScreen> {
     }
 
     if (!mounted) return;
+    if (error != null) {
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(_snackBar(error, const Color(0xFFEF4444)));
+      return;
+    }
     Navigator.pop(context);
     ScaffoldMessenger.of(context).showSnackBar(
       _snackBar(
@@ -278,8 +310,7 @@ class _CandidateFormScreenState extends State<CandidateFormScreen> {
                           ..._documents.asMap().entries.map(
                             (e) => DocumentPreview(
                               file: e.value,
-                              onRemove: () =>
-                                  setState(() => _documents.removeAt(e.key)),
+                              onRemove: () => _removeDocument(e.key),
                             ),
                           ),
                           OutlinedButton.icon(

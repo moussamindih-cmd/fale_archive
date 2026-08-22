@@ -29,8 +29,11 @@ class _CandidatesListScreenState extends State<CandidatesListScreen> {
   String _searchText = '';
 
   static const List<String> _positions = [
-    'Secrétaire', 'Comptable', 'Gestionnaire',
-    'Conseiller Principal', 'Conseiller Adjoint',
+    'Secrétaire',
+    'Comptable',
+    'Gestionnaire',
+    'Conseiller Principal',
+    'Conseiller Adjoint',
   ];
 
   @override
@@ -61,7 +64,13 @@ class _CandidatesListScreenState extends State<CandidatesListScreen> {
                   foregroundColor: Colors.white,
                   elevation: 6,
                   icon: const Icon(Icons.person_add_rounded, size: 20),
-                  label: Text('Nouveau candidat', style: GoogleFonts.outfit(fontWeight: FontWeight.w700, fontSize: 14)),
+                  label: Text(
+                    'Nouveau candidat',
+                    style: GoogleFonts.outfit(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                    ),
+                  ),
                   onPressed: () async {
                     await Navigator.push(
                       context,
@@ -122,7 +131,11 @@ class _CandidatesListScreenState extends State<CandidatesListScreen> {
                               child: _filterChip(
                                 '${s.label} ($count)',
                                 _filterStatus == s,
-                                () => setState(() => _filterStatus = _filterStatus == s ? null : s),
+                                () => setState(
+                                  () => _filterStatus = _filterStatus == s
+                                      ? null
+                                      : s,
+                                ),
                                 Color(s.colorValue),
                                 isDark,
                               ),
@@ -147,16 +160,22 @@ class _CandidatesListScreenState extends State<CandidatesListScreen> {
                             isDark,
                           ),
                           const SizedBox(width: 8),
-                          ..._positions.map((p) => Padding(
-                                padding: const EdgeInsets.only(right: 8),
-                                child: _filterChip(
-                                  p,
-                                  _filterPosition == p,
-                                  () => setState(() => _filterPosition = _filterPosition == p ? null : p),
-                                  jobColor(p),
-                                  isDark,
+                          ..._positions.map(
+                            (p) => Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: _filterChip(
+                                p,
+                                _filterPosition == p,
+                                () => setState(
+                                  () => _filterPosition = _filterPosition == p
+                                      ? null
+                                      : p,
                                 ),
-                              )),
+                                jobColor(p),
+                                isDark,
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -181,7 +200,10 @@ class _CandidatesListScreenState extends State<CandidatesListScreen> {
                     ),
                     Text(
                       '${filtered.length} candidat(s)',
-                      style: GoogleFonts.outfit(fontSize: 12, color: isDark ? kDarkTextMuted : kTextMuted),
+                      style: GoogleFonts.outfit(
+                        fontSize: 12,
+                        color: isDark ? kDarkTextMuted : kTextMuted,
+                      ),
                     ),
                   ],
                 ),
@@ -194,7 +216,11 @@ class _CandidatesListScreenState extends State<CandidatesListScreen> {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.person_search_rounded, size: 48, color: isDark ? kDarkTextMuted : kTextMuted),
+                            Icon(
+                              Icons.person_search_rounded,
+                              size: 48,
+                              color: isDark ? kDarkTextMuted : kTextMuted,
+                            ),
                             const SizedBox(height: 12),
                             Text(
                               'Aucun candidat trouvé',
@@ -208,10 +234,14 @@ class _CandidatesListScreenState extends State<CandidatesListScreen> {
                         ),
                       )
                     : ListView.separated(
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 10,
+                        ),
                         itemCount: filtered.length,
                         separatorBuilder: (_, __) => const SizedBox(height: 10),
-                        itemBuilder: (_, i) => _buildCandidateCard(filtered[i], isDark),
+                        itemBuilder: (_, i) =>
+                            _buildCandidateCard(filtered[i], isDark),
                       ),
               ),
             ],
@@ -221,7 +251,13 @@ class _CandidatesListScreenState extends State<CandidatesListScreen> {
     );
   }
 
-  Widget _filterChip(String label, bool selected, VoidCallback onTap, Color color, bool isDark) {
+  Widget _filterChip(
+    String label,
+    bool selected,
+    VoidCallback onTap,
+    Color color,
+    bool isDark,
+  ) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
@@ -229,9 +265,7 @@ class _CandidatesListScreenState extends State<CandidatesListScreen> {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: selected
-              ? color
-              : (isDark ? kDarkCard : kSurfaceSubtle),
+          color: selected ? color : (isDark ? kDarkCard : kSurfaceSubtle),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: selected ? color : (isDark ? kDarkBorder : kBorderColor),
@@ -296,7 +330,11 @@ class _CandidatesListScreenState extends State<CandidatesListScreen> {
                       child: Center(
                         child: Text(
                           c.initials,
-                          style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.w800, color: posColor),
+                          style: GoogleFonts.outfit(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: posColor,
+                          ),
                         ),
                       ),
                     ),
@@ -316,11 +354,19 @@ class _CandidatesListScreenState extends State<CandidatesListScreen> {
                           const SizedBox(height: 2),
                           Row(
                             children: [
-                              Icon(Icons.work_outline_rounded, size: 13, color: posColor),
+                              Icon(
+                                Icons.work_outline_rounded,
+                                size: 13,
+                                color: posColor,
+                              ),
                               const SizedBox(width: 4),
                               Text(
                                 c.targetPosition,
-                                style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.w600, color: posColor),
+                                style: GoogleFonts.outfit(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: posColor,
+                                ),
                               ),
                             ],
                           ),
@@ -328,14 +374,21 @@ class _CandidatesListScreenState extends State<CandidatesListScreen> {
                       ),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: statusColor.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
                         c.status.label,
-                        style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.w700, color: statusColor),
+                        style: GoogleFonts.outfit(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: statusColor,
+                        ),
                       ),
                     ),
                   ],
@@ -345,13 +398,33 @@ class _CandidatesListScreenState extends State<CandidatesListScreen> {
                 const SizedBox(height: 12),
                 Row(
                   children: [
-                    Icon(Icons.phone_outlined, size: 13, color: isDark ? kDarkTextMuted : kTextMuted),
+                    Icon(
+                      Icons.phone_outlined,
+                      size: 13,
+                      color: isDark ? kDarkTextMuted : kTextMuted,
+                    ),
                     const SizedBox(width: 4),
-                    Text(c.phone, style: GoogleFonts.outfit(fontSize: 12, color: isDark ? kDarkTextSecondary : kTextSecondary)),
+                    Text(
+                      c.phone,
+                      style: GoogleFonts.outfit(
+                        fontSize: 12,
+                        color: isDark ? kDarkTextSecondary : kTextSecondary,
+                      ),
+                    ),
                     const SizedBox(width: 14),
-                    Icon(Icons.attach_file_rounded, size: 13, color: isDark ? kDarkTextMuted : kTextMuted),
+                    Icon(
+                      Icons.attach_file_rounded,
+                      size: 13,
+                      color: isDark ? kDarkTextMuted : kTextMuted,
+                    ),
                     const SizedBox(width: 4),
-                    Text('${c.documents.length} doc(s)', style: GoogleFonts.outfit(fontSize: 12, color: isDark ? kDarkTextSecondary : kTextSecondary)),
+                    Text(
+                      '${c.documents.length} doc(s)',
+                      style: GoogleFonts.outfit(
+                        fontSize: 12,
+                        color: isDark ? kDarkTextSecondary : kTextSecondary,
+                      ),
+                    ),
                   ],
                 ),
               ],

@@ -94,9 +94,7 @@ class SubscriptionState extends ChangeNotifier {
   // ─── Polling automatique ──────────────────────────────────────────────────
 
   void _startPolling(String organizationId, String subscriptionId) {
-    _service
-        .pollStatus(subscriptionId: subscriptionId)
-        .listen((status) async {
+    _service.pollStatus(subscriptionId: subscriptionId).listen((status) async {
       _pollStatus = status;
       notifyListeners();
 

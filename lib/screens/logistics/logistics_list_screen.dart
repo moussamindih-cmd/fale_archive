@@ -63,7 +63,13 @@ class _LogisticsListScreenState extends State<LogisticsListScreen> {
                   foregroundColor: Colors.white,
                   elevation: 6,
                   icon: const Icon(Icons.add_rounded, size: 20),
-                  label: Text('Nouvelle pièce', style: GoogleFonts.outfit(fontWeight: FontWeight.w700, fontSize: 14)),
+                  label: Text(
+                    'Nouvelle pièce',
+                    style: GoogleFonts.outfit(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                    ),
+                  ),
                   onPressed: () => Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -116,16 +122,21 @@ class _LogisticsListScreenState extends State<LogisticsListScreen> {
                             isDark,
                           ),
                           const SizedBox(width: 8),
-                          ...LogisticsDocType.values.map((t) => Padding(
-                                padding: const EdgeInsets.only(right: 8),
-                                child: _chip(
-                                  t.label,
-                                  _filterType == t,
-                                  () => setState(() => _filterType = _filterType == t ? null : t),
-                                  Color(t.colorValue),
-                                  isDark,
+                          ...LogisticsDocType.values.map(
+                            (t) => Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: _chip(
+                                t.label,
+                                _filterType == t,
+                                () => setState(
+                                  () =>
+                                      _filterType = _filterType == t ? null : t,
                                 ),
-                              )),
+                                Color(t.colorValue),
+                                isDark,
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -145,16 +156,22 @@ class _LogisticsListScreenState extends State<LogisticsListScreen> {
                             isDark,
                           ),
                           const SizedBox(width: 8),
-                          ...LogisticsStatus.values.map((s) => Padding(
-                                padding: const EdgeInsets.only(right: 8),
-                                child: _chip(
-                                  s.label,
-                                  _filterStatus == s,
-                                  () => setState(() => _filterStatus = _filterStatus == s ? null : s),
-                                  Color(s.colorValue),
-                                  isDark,
+                          ...LogisticsStatus.values.map(
+                            (s) => Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: _chip(
+                                s.label,
+                                _filterStatus == s,
+                                () => setState(
+                                  () => _filterStatus = _filterStatus == s
+                                      ? null
+                                      : s,
                                 ),
-                              )),
+                                Color(s.colorValue),
+                                isDark,
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -179,7 +196,10 @@ class _LogisticsListScreenState extends State<LogisticsListScreen> {
                     ),
                     Text(
                       '${items.length} document(s)',
-                      style: GoogleFonts.outfit(fontSize: 12, color: isDark ? kDarkTextMuted : kTextMuted),
+                      style: GoogleFonts.outfit(
+                        fontSize: 12,
+                        color: isDark ? kDarkTextMuted : kTextMuted,
+                      ),
                     ),
                   ],
                 ),
@@ -192,7 +212,11 @@ class _LogisticsListScreenState extends State<LogisticsListScreen> {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.receipt_long_rounded, size: 48, color: isDark ? kDarkTextMuted : kTextMuted),
+                            Icon(
+                              Icons.receipt_long_rounded,
+                              size: 48,
+                              color: isDark ? kDarkTextMuted : kTextMuted,
+                            ),
                             const SizedBox(height: 12),
                             Text(
                               'Aucune pièce trouvée',
@@ -206,10 +230,14 @@ class _LogisticsListScreenState extends State<LogisticsListScreen> {
                         ),
                       )
                     : ListView.separated(
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 10,
+                        ),
                         itemCount: items.length,
                         separatorBuilder: (_, __) => const SizedBox(height: 10),
-                        itemBuilder: (_, i) => _buildLogisticsCard(items[i], isDark),
+                        itemBuilder: (_, i) =>
+                            _buildLogisticsCard(items[i], isDark),
                       ),
               ),
             ],
@@ -219,7 +247,13 @@ class _LogisticsListScreenState extends State<LogisticsListScreen> {
     );
   }
 
-  Widget _chip(String label, bool selected, VoidCallback onTap, Color color, bool isDark) {
+  Widget _chip(
+    String label,
+    bool selected,
+    VoidCallback onTap,
+    Color color,
+    bool isDark,
+  ) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
@@ -229,14 +263,18 @@ class _LogisticsListScreenState extends State<LogisticsListScreen> {
         decoration: BoxDecoration(
           color: selected ? color : (isDark ? kDarkCard : kSurfaceSubtle),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: selected ? color : (isDark ? kDarkBorder : kBorderColor)),
+          border: Border.all(
+            color: selected ? color : (isDark ? kDarkBorder : kBorderColor),
+          ),
         ),
         child: Text(
           label,
           style: GoogleFonts.outfit(
             fontSize: 12,
             fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-            color: selected ? Colors.white : (isDark ? kDarkTextPrimary : kTextPrimary),
+            color: selected
+                ? Colors.white
+                : (isDark ? kDarkTextPrimary : kTextPrimary),
           ),
         ),
       ),
@@ -285,7 +323,11 @@ class _LogisticsListScreenState extends State<LogisticsListScreen> {
                         color: typeColor.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(14),
                       ),
-                      child: Icon(item.documentType.icon, color: typeColor, size: 20),
+                      child: Icon(
+                        item.documentType.icon,
+                        color: typeColor,
+                        size: 20,
+                      ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -306,21 +348,30 @@ class _LogisticsListScreenState extends State<LogisticsListScreen> {
                             style: GoogleFonts.outfit(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
-                              color: isDark ? kDarkTextSecondary : kTextSecondary,
+                              color: isDark
+                                  ? kDarkTextSecondary
+                                  : kTextSecondary,
                             ),
                           ),
                         ],
                       ),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: statusColor.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
                         item.status.label,
-                        style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.w700, color: statusColor),
+                        style: GoogleFonts.outfit(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: statusColor,
+                        ),
                       ),
                     ),
                   ],
@@ -339,11 +390,18 @@ class _LogisticsListScreenState extends State<LogisticsListScreen> {
                       ),
                     ),
                     const Spacer(),
-                    Icon(Icons.calendar_today_rounded, size: 12, color: isDark ? kDarkTextMuted : kTextMuted),
+                    Icon(
+                      Icons.calendar_today_rounded,
+                      size: 12,
+                      color: isDark ? kDarkTextMuted : kTextMuted,
+                    ),
                     const SizedBox(width: 4),
                     Text(
                       DateFormat('dd/MM/yyyy').format(item.issueDate),
-                      style: GoogleFonts.outfit(fontSize: 12, color: isDark ? kDarkTextMuted : kTextMuted),
+                      style: GoogleFonts.outfit(
+                        fontSize: 12,
+                        color: isDark ? kDarkTextMuted : kTextMuted,
+                      ),
                     ),
                   ],
                 ),

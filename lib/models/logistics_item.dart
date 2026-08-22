@@ -67,10 +67,7 @@ enum LogisticsStatus {
   final String label;
   final int colorValue;
 
-  const LogisticsStatus({
-    required this.label,
-    required this.colorValue,
-  });
+  const LogisticsStatus({required this.label, required this.colorValue});
 }
 
 /// Modèle de données d'un document logistique
@@ -89,6 +86,7 @@ class LogisticsItem {
   final String notes; // Notes complémentaires
   final List<ActionHistoryEntry> history;
   final bool isDeleted; // Suppression logique
+  final DateTime? deletedAt; // Date de mise à la corbeille
 
   const LogisticsItem({
     required this.id,
@@ -105,12 +103,22 @@ class LogisticsItem {
     this.notes = '',
     this.history = const [],
     this.isDeleted = false,
+    this.deletedAt,
   });
 
   /// Montant formaté pour l'affichage
   String get formattedAmount {
     if (amount == null) return '—';
     return '${amount!.toStringAsFixed(0)} FCFA';
+  }
+
+  /// Nombre de jours restants avant suppression définitive (7 jours max)
+  int get daysUntilDeletion {
+    if (deletedAt == null) return 0;
+    final deletionDate = deletedAt!.add(const Duration(days: 7));
+    final remaining = deletionDate.difference(DateTime.now());
+    if (remaining.isNegative) return 0;
+    return (remaining.inHours / 24).ceil();
   }
 
   /// Copie avec modifications
@@ -129,6 +137,8 @@ class LogisticsItem {
     String? notes,
     List<ActionHistoryEntry>? history,
     bool? isDeleted,
+    DateTime? deletedAt,
+    bool clearDeletedAt = false,
   }) {
     return LogisticsItem(
       id: id ?? this.id,
@@ -145,6 +155,7 @@ class LogisticsItem {
       notes: notes ?? this.notes,
       history: history ?? this.history,
       isDeleted: isDeleted ?? this.isDeleted,
+      deletedAt: clearDeletedAt ? null : (deletedAt ?? this.deletedAt),
     );
   }
 

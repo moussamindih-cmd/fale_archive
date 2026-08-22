@@ -16,10 +16,26 @@
 #   kill -SIGUSR1 $(cat /tmp/fale_dev.pid)   # hot reload
 #   kill -SIGUSR2 $(cat /tmp/fale_dev.pid)   # hot restart
 #
+# Pour cibler un autre projet Supabase (staging, sandbox personnelle...) sans
+# toucher au code, exporter avant de lancer ce script :
+#   export SUPABASE_URL=https://xxxxx.supabase.co
+#   export SUPABASE_ANON_KEY=sb_publishable_xxxxx
+# Sans ces variables, le projet Supabase par défaut du dépôt est utilisé.
+# Voir README.md.
+#
 set -euo pipefail
 cd "$(dirname "$0")"
+
+DART_DEFINES=()
+if [[ -n "${SUPABASE_URL:-}" ]]; then
+  DART_DEFINES+=(--dart-define=SUPABASE_URL="$SUPABASE_URL")
+fi
+if [[ -n "${SUPABASE_ANON_KEY:-}" ]]; then
+  DART_DEFINES+=(--dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY")
+fi
 
 exec flutter run -d web-server \
   --web-hostname=127.0.0.1 \
   --web-port=5000 \
-  --pid-file=/tmp/fale_dev.pid
+  --pid-file=/tmp/fale_dev.pid \
+  "${DART_DEFINES[@]}"

@@ -9,7 +9,7 @@ class SubscriptionPlan {
   final List<String> features;
   final bool isActive;
   final int sortOrder;
-  
+
   // Nouveaux champs pour la Phase 1 (Quotas et Période de grâce)
   final int maxUsers;
   final int maxStorageMb;
@@ -192,11 +192,11 @@ class SubscriptionTransaction {
       amount: (json['amount'] as num).toDouble(),
       currency: json['currency'] as String? ?? 'XAF',
       operator: PaymentOperator.fromString(
-          json['operator'] as String? ?? 'moov'),
+        json['operator'] as String? ?? 'moov',
+      ),
       phoneNumber: json['phone_number'] as String? ?? '',
       transactionReference: json['transaction_reference'] as String?,
-      status: SubscriptionStatus.fromString(
-          json['payment_status'] as String?),
+      status: SubscriptionStatus.fromString(json['payment_status'] as String?),
       createdAt: DateTime.parse(json['created_at'] as String),
       expiresAt: json['expires_at'] != null
           ? DateTime.parse(json['expires_at'] as String)

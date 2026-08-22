@@ -45,7 +45,8 @@ class InAppNotification {
   final NotificationType type;
   final DateTime timestamp;
   final bool isRead;
-  final String? relatedEntityId; // ID d'archive, candidat ou document logistique
+  final String?
+  relatedEntityId; // ID d'archive, candidat ou document logistique
   final String? targetRole; // Rôle visé (null si pour tous ou ciblé par userId)
   final String? targetUserId;
 

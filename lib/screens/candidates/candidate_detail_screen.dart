@@ -4,9 +4,10 @@ import 'package:intl/intl.dart';
 import '../../state/candidates_state.dart';
 import '../../models/candidate.dart';
 import '../../widgets/document_preview.dart';
+import '../../widgets/comments_timeline.dart';
 import 'candidate_form_screen.dart';
 
-class CandidateDetailScreen extends StatelessWidget {
+class CandidateDetailScreen extends StatefulWidget {
   final String candidateId;
   final CandidatesState candidatesState;
   final String currentUserName;
@@ -21,13 +22,31 @@ class CandidateDetailScreen extends StatelessWidget {
   });
 
   @override
+  State<CandidateDetailScreen> createState() => _CandidateDetailScreenState();
+}
+
+class _CandidateDetailScreenState extends State<CandidateDetailScreen> {
+  String get candidateId => widget.candidateId;
+  CandidatesState get candidatesState => widget.candidatesState;
+  String get currentUserName => widget.currentUserName;
+  bool get canEdit => widget.canEdit;
+
+  @override
+  void initState() {
+    super.initState();
+    candidatesState.loadHistory(candidateId);
+  }
+
+  @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: candidatesState,
       builder: (context, _) {
         final candidate = candidatesState.getCandidateById(candidateId);
         if (candidate == null) {
-          return const Scaffold(body: Center(child: Text('Candidat introuvable.')));
+          return const Scaffold(
+            body: Center(child: Text('Candidat introuvable.')),
+          );
         }
         final color = Color(candidate.status.colorValue);
 
@@ -41,16 +60,22 @@ class CandidateDetailScreen extends StatelessWidget {
                     IconButton(
                       icon: const Icon(Icons.edit_rounded),
                       tooltip: 'Modifier',
-                      onPressed: () => Navigator.push(context, MaterialPageRoute(
-                        builder: (_) => CandidateFormScreen(
-                          candidatesState: candidatesState,
-                          currentUserName: currentUserName,
-                          editingCandidate: candidate,
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => CandidateFormScreen(
+                            candidatesState: candidatesState,
+                            currentUserName: currentUserName,
+                            editingCandidate: candidate,
+                          ),
                         ),
-                      )),
+                      ),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.delete_outline_rounded, color: Color(0xFFEF4444)),
+                      icon: const Icon(
+                        Icons.delete_outline_rounded,
+                        color: Color(0xFFEF4444),
+                      ),
                       tooltip: 'Supprimer',
                       onPressed: () => _confirmDelete(context, candidate),
                     ),
@@ -77,12 +102,13 @@ class CandidateDetailScreen extends StatelessWidget {
                 const SizedBox(height: 16),
 
                 // ── Documents attachés ─────────────────────────────────
-                if (candidate.documents.isNotEmpty) ...[
+                if (candidate.documents.any((f) => !f.isRemoved)) ...[
                   _buildSection(
                     title: 'Documents attachés',
                     icon: Icons.attach_file_rounded,
                     child: Column(
                       children: candidate.documents
+                          .where((f) => !f.isRemoved)
                           .map((f) => DocumentPreview(file: f))
                           .toList(),
                     ),
@@ -90,8 +116,20 @@ class CandidateDetailScreen extends StatelessWidget {
                   const SizedBox(height: 16),
                 ],
 
-                // ── Historique ────────────────────────────────────────
-                _buildHistorySection(candidate),
+                // ── Historique & commentaires ───────────────────────────
+                _buildSection(
+                  title: 'Activité & commentaires',
+                  icon: Icons.forum_outlined,
+                  child: CommentsTimeline(
+                    entries: candidatesState.historyFor(candidate.id),
+                    accentColor: const Color(0xFF2563EB),
+                    onSendComment: (text) => candidatesState.addComment(
+                      candidateId: candidate.id,
+                      text: text,
+                      authorName: currentUserName,
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -116,8 +154,14 @@ class CandidateDetailScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Center(
-                    child: Text(c.initials,
-                      style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.w800, color: color)),
+                    child: Text(
+                      c.initials,
+                      style: GoogleFonts.outfit(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        color: color,
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -125,17 +169,32 @@ class CandidateDetailScreen extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(c.fullName,
-                        style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.w800, color: const Color(0xFF0F172A))),
+                      Text(
+                        c.fullName,
+                        style: GoogleFonts.outfit(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: const Color(0xFF0F172A),
+                        ),
+                      ),
                       const SizedBox(height: 4),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
                         decoration: BoxDecoration(
                           color: color.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(6),
                         ),
-                        child: Text(c.status.label,
-                          style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.w700, color: color)),
+                        child: Text(
+                          c.status.label,
+                          style: GoogleFonts.outfit(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: color,
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -145,11 +204,20 @@ class CandidateDetailScreen extends StatelessWidget {
             const SizedBox(height: 16),
             const Divider(),
             const SizedBox(height: 12),
-            _infoRow(Icons.work_outline_rounded, 'Poste visé', c.targetPosition),
-            if (c.email.isNotEmpty) _infoRow(Icons.email_outlined, 'Email', c.email),
-            if (c.phone.isNotEmpty) _infoRow(Icons.phone_outlined, 'Téléphone', c.phone),
-            _infoRow(Icons.calendar_today_outlined, 'Date de candidature',
-              DateFormat('dd MMMM yyyy', 'fr_FR').format(c.applicationDate)),
+            _infoRow(
+              Icons.work_outline_rounded,
+              'Poste visé',
+              c.targetPosition,
+            ),
+            if (c.email.isNotEmpty)
+              _infoRow(Icons.email_outlined, 'Email', c.email),
+            if (c.phone.isNotEmpty)
+              _infoRow(Icons.phone_outlined, 'Téléphone', c.phone),
+            _infoRow(
+              Icons.calendar_today_outlined,
+              'Date de candidature',
+              DateFormat('dd MMMM yyyy', 'fr_FR').format(c.applicationDate),
+            ),
           ],
         ),
       ),
@@ -163,11 +231,22 @@ class CandidateDetailScreen extends StatelessWidget {
         children: [
           Icon(icon, size: 16, color: const Color(0xFF64748B)),
           const SizedBox(width: 8),
-          Text('$label : ',
-            style: GoogleFonts.outfit(fontSize: 13, color: const Color(0xFF64748B))),
+          Text(
+            '$label : ',
+            style: GoogleFonts.outfit(
+              fontSize: 13,
+              color: const Color(0xFF64748B),
+            ),
+          ),
           Expanded(
-            child: Text(value,
-              style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.w600, color: const Color(0xFF0F172A))),
+            child: Text(
+              value,
+              style: GoogleFonts.outfit(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFF0F172A),
+              ),
+            ),
           ),
         ],
       ),
@@ -181,8 +260,14 @@ class CandidateDetailScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Changer le statut',
-              style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.w700, color: const Color(0xFF0F172A))),
+            Text(
+              'Changer le statut',
+              style: GoogleFonts.outfit(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF0F172A),
+              ),
+            ),
             const SizedBox(height: 12),
             Wrap(
               spacing: 8,
@@ -202,18 +287,27 @@ class CandidateDetailScreen extends StatelessWidget {
                         },
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 150),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: isActive ? sColor : const Color(0xFFF1F5F9),
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: isActive ? sColor : const Color(0xFFE2E8F0)),
+                      border: Border.all(
+                        color: isActive ? sColor : const Color(0xFFE2E8F0),
+                      ),
                     ),
-                    child: Text(s.label,
+                    child: Text(
+                      s.label,
                       style: GoogleFonts.outfit(
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
-                        color: isActive ? Colors.white : const Color(0xFF64748B),
-                      )),
+                        color: isActive
+                            ? Colors.white
+                            : const Color(0xFF64748B),
+                      ),
+                    ),
                   ),
                 );
               }).toList(),
@@ -229,58 +323,29 @@ class CandidateDetailScreen extends StatelessWidget {
       title: 'Notes RH',
       icon: Icons.notes_rounded,
       child: c.rhNotes.isEmpty
-          ? Text('Aucune note.', style: GoogleFonts.outfit(fontSize: 13, color: const Color(0xFF94A3B8)))
-          : Text(c.rhNotes, style: GoogleFonts.outfit(fontSize: 13, color: const Color(0xFF374151), height: 1.5)),
-    );
-  }
-
-  Widget _buildHistorySection(Candidate c) {
-    return _buildSection(
-      title: 'Historique des actions',
-      icon: Icons.history_rounded,
-      child: c.history.isEmpty
-          ? Text('Aucune action enregistrée.',
-              style: GoogleFonts.outfit(fontSize: 13, color: const Color(0xFF94A3B8)))
-          : Column(
-              children: c.history.reversed.map((entry) {
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        width: 8, height: 8,
-                        margin: const EdgeInsets.only(top: 5),
-                        decoration: const BoxDecoration(
-                          color: Color(0xFF2563EB),
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(entry.displayAction,
-                              style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.w700, color: const Color(0xFF0F172A))),
-                            Text(entry.details,
-                              style: GoogleFonts.outfit(fontSize: 12, color: const Color(0xFF64748B))),
-                            Text(
-                              '${entry.userName} · ${DateFormat('dd/MM/yyyy HH:mm').format(entry.timestamp)}',
-                              style: GoogleFonts.outfit(fontSize: 11, color: const Color(0xFF94A3B8)),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }).toList(),
+          ? Text(
+              'Aucune note.',
+              style: GoogleFonts.outfit(
+                fontSize: 13,
+                color: const Color(0xFF94A3B8),
+              ),
+            )
+          : Text(
+              c.rhNotes,
+              style: GoogleFonts.outfit(
+                fontSize: 13,
+                color: const Color(0xFF374151),
+                height: 1.5,
+              ),
             ),
     );
   }
 
-  Widget _buildSection({required String title, required IconData icon, required Widget child}) {
+  Widget _buildSection({
+    required String title,
+    required IconData icon,
+    required Widget child,
+  }) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -291,8 +356,14 @@ class CandidateDetailScreen extends StatelessWidget {
               children: [
                 Icon(icon, size: 18, color: const Color(0xFF64748B)),
                 const SizedBox(width: 8),
-                Text(title,
-                  style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.w700, color: const Color(0xFF0F172A))),
+                Text(
+                  title,
+                  style: GoogleFonts.outfit(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF0F172A),
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 12),
@@ -320,7 +391,9 @@ class CandidateDetailScreen extends StatelessWidget {
             child: const Text('Annuler'),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFEF4444)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFEF4444),
+            ),
             onPressed: () {
               candidatesState.softDeleteCandidate(
                 id: c.id,

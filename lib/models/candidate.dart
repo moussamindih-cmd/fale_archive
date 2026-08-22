@@ -53,6 +53,7 @@ class Candidate {
   final String rhNotes; // Notes RH (texte libre)
   final List<ActionHistoryEntry> history; // Historique des actions
   final bool isDeleted; // Suppression logique
+  final DateTime? deletedAt; // Date de mise à la corbeille
 
   const Candidate({
     required this.id,
@@ -66,6 +67,7 @@ class Candidate {
     this.rhNotes = '',
     this.history = const [],
     this.isDeleted = false,
+    this.deletedAt,
   });
 
   /// Initiales pour l'avatar
@@ -76,6 +78,15 @@ class Candidate {
   }
 
   DateTime get createdAt => applicationDate;
+
+  /// Nombre de jours restants avant suppression définitive (7 jours max)
+  int get daysUntilDeletion {
+    if (deletedAt == null) return 0;
+    final deletionDate = deletedAt!.add(const Duration(days: 7));
+    final remaining = deletionDate.difference(DateTime.now());
+    if (remaining.isNegative) return 0;
+    return (remaining.inHours / 24).ceil();
+  }
 
   /// Copie avec modifications
   Candidate copyWith({
@@ -90,6 +101,8 @@ class Candidate {
     String? rhNotes,
     List<ActionHistoryEntry>? history,
     bool? isDeleted,
+    DateTime? deletedAt,
+    bool clearDeletedAt = false,
   }) {
     return Candidate(
       id: id ?? this.id,
@@ -103,6 +116,7 @@ class Candidate {
       rhNotes: rhNotes ?? this.rhNotes,
       history: history ?? this.history,
       isDeleted: isDeleted ?? this.isDeleted,
+      deletedAt: clearDeletedAt ? null : (deletedAt ?? this.deletedAt),
     );
   }
 

@@ -12,7 +12,8 @@ class NotificationsState extends ChangeNotifier {
     _loadFromStorage();
   }
 
-  List<InAppNotification> get allNotifications => List.unmodifiable(_notifications);
+  List<InAppNotification> get allNotifications =>
+      List.unmodifiable(_notifications);
 
   /// Filtre les notifications pertinentes pour l'utilisateur connecté
   List<InAppNotification> forUser({
@@ -24,14 +25,10 @@ class NotificationsState extends ChangeNotifier {
       if (n.targetRole != null && n.targetRole == role.name) return true;
       if (n.targetUserId == null && n.targetRole == null) return true;
       return false;
-    }).toList()
-      ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    }).toList()..sort((a, b) => b.timestamp.compareTo(a.timestamp));
   }
 
-  int unreadCount({
-    required String userId,
-    required UserRole role,
-  }) {
+  int unreadCount({required String userId, required UserRole role}) {
     return forUser(userId: userId, role: role).where((n) => !n.isRead).length;
   }
 
@@ -108,7 +105,8 @@ class NotificationsState extends ChangeNotifier {
         InAppNotification(
           id: 'n-1',
           title: 'Validation requise',
-          message: 'Une facture Sonatel (FAC-2026-001) attend votre validation.',
+          message:
+              'Une facture Sonatel (FAC-2026-001) attend votre validation.',
           type: NotificationType.logisticsPending,
           timestamp: DateTime.now().subtract(const Duration(minutes: 45)),
           targetRole: UserRole.directeurAdministratif.name,
@@ -124,7 +122,8 @@ class NotificationsState extends ChangeNotifier {
         InAppNotification(
           id: 'n-3',
           title: 'Nouveau candidat',
-          message: 'Dossier de candidature reçu pour le poste de Secrétaire de Direction.',
+          message:
+              'Dossier de candidature reçu pour le poste de Secrétaire de Direction.',
           type: NotificationType.candidateUpdate,
           timestamp: DateTime.now().subtract(const Duration(hours: 4)),
           targetRole: UserRole.rh.name,
@@ -132,7 +131,8 @@ class NotificationsState extends ChangeNotifier {
         InAppNotification(
           id: 'n-4',
           title: 'Bienvenue sur FALE Archives v2',
-          message: 'Toutes vos archives, logistique et recrutements sont désormais synchronisés.',
+          message:
+              'Toutes vos archives, logistique et recrutements sont désormais synchronisés.',
           type: NotificationType.system,
           timestamp: DateTime.now().subtract(const Duration(days: 1)),
         ),

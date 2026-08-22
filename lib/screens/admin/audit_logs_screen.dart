@@ -40,7 +40,7 @@ class _AuditLogsScreenState extends State<AuditLogsScreen> {
           .eq('organization_id', widget.organizationId)
           .order('created_at', ascending: false)
           .limit(100);
-      
+
       _logs = List<Map<String, dynamic>>.from(response as List);
     } catch (e) {
       _error = 'Erreur lors du chargement des logs : $e';
@@ -59,14 +59,16 @@ class _AuditLogsScreenState extends State<AuditLogsScreen> {
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
             onPressed: _loadLogs,
-          )
+          ),
         ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
-              ? Center(child: Text(_error!, style: const TextStyle(color: Colors.red)))
-              : _buildList(),
+          ? Center(
+              child: Text(_error!, style: const TextStyle(color: Colors.red)),
+            )
+          : _buildList(),
     );
   }
 
@@ -96,9 +98,9 @@ class _AuditLogsScreenState extends State<AuditLogsScreen> {
         final table = log['table_name'] as String;
         final createdAtStr = log['created_at'] as String;
         final date = DateTime.parse(createdAtStr);
-        
+
         final emp = log['employees'] as Map<String, dynamic>?;
-        final empName = emp != null 
+        final empName = emp != null
             ? '${emp['first_name']} ${emp['last_name']}'
             : 'Système / Automatique';
 

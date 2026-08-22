@@ -4,7 +4,7 @@ import '../services/local_storage_service.dart';
 
 class ThemeState extends ChangeNotifier {
   ThemeMode _themeMode = ThemeMode.light;
-  
+
   // Champs pour la Marque Blanche (White Label)
   Color? _tenantPrimaryColor;
   String? _tenantLogoUrl;
@@ -15,7 +15,7 @@ class ThemeState extends ChangeNotifier {
 
   ThemeMode get themeMode => _themeMode;
   bool get isDarkMode => _themeMode == ThemeMode.dark;
-  
+
   Color? get tenantPrimaryColor => _tenantPrimaryColor;
   String? get tenantLogoUrl => _tenantLogoUrl;
 
