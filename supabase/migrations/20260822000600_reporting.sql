@@ -19,6 +19,7 @@
 -- Le délai se mesure de la réception à l'entrée en étape gagnante. Les
 -- candidatures rejetées sont exclues : les compter allongerait
 -- artificiellement un indicateur censé décrire les recrutements aboutis.
+DROP VIEW IF EXISTS public.v_hr_time_to_hire;
 CREATE OR REPLACE VIEW public.v_hr_time_to_hire AS
 SELECT
     a.organization_id,
@@ -48,6 +49,7 @@ ALTER VIEW public.v_hr_time_to_hire SET (security_invoker = true);
 -- l'historique — et non celles qui s'y trouvent actuellement. Une
 -- candidature passée par l'entretien puis rejetée doit compter dans
 -- l'entretien, sinon le taux de conversion est faux.
+DROP VIEW IF EXISTS public.v_hr_funnel;
 CREATE OR REPLACE VIEW public.v_hr_funnel AS
 WITH reached AS (
     -- DISTINCT : une candidature qui repasse par une étape ne doit être
@@ -98,6 +100,7 @@ ALTER VIEW public.v_hr_funnel SET (security_invoker = true);
 -- 3. Sources de candidature (§5.4.1)
 -- ---------------------------------------------------------------------
 
+DROP VIEW IF EXISTS public.v_hr_sources;
 CREATE OR REPLACE VIEW public.v_hr_sources AS
 SELECT
     a.organization_id,
@@ -123,6 +126,7 @@ ALTER VIEW public.v_hr_sources SET (security_invoker = true);
 -- 4. Volume archivé (§5.4.2)
 -- ---------------------------------------------------------------------
 
+DROP VIEW IF EXISTS public.v_archive_volume;
 CREATE OR REPLACE VIEW public.v_archive_volume AS
 SELECT
     a.organization_id,
@@ -153,6 +157,7 @@ ALTER VIEW public.v_archive_volume SET (security_invoker = true);
 -- son échéance n'est pas dépassée sans décision. Une archive échue laissée
 -- en l'état est *non conforme* : c'est précisément ce que l'indicateur doit
 -- faire remonter, pas ce qu'il doit masquer.
+DROP VIEW IF EXISTS public.v_retention_compliance;
 CREATE OR REPLACE VIEW public.v_retention_compliance AS
 WITH classified AS (
     SELECT
@@ -194,6 +199,7 @@ ALTER VIEW public.v_retention_compliance SET (security_invoker = true);
 
 -- Une seule requête pour la bannière d'indicateurs : cinq appels séparés au
 -- chargement d'un tableau de bord, c'est cinq allers-retours réseau.
+DROP FUNCTION IF EXISTS public.hr_dashboard_summary();
 CREATE OR REPLACE FUNCTION public.hr_dashboard_summary()
 RETURNS jsonb
 LANGUAGE sql

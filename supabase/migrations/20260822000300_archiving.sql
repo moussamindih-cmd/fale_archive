@@ -116,7 +116,7 @@ CREATE INDEX IF NOT EXISTS daily_archives_category
 CREATE TABLE IF NOT EXISTS public.document_versions (
     id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id uuid NOT NULL REFERENCES public.organizations(id),
-    archive_id      text NOT NULL REFERENCES public.daily_archives(id) ON DELETE CASCADE,
+    archive_id      uuid NOT NULL REFERENCES public.daily_archives(id) ON DELETE CASCADE,
     version_number  integer NOT NULL CHECK (version_number > 0),
     file_name       text NOT NULL,
     mime_type       text,
@@ -213,8 +213,9 @@ CREATE TRIGGER compute_retention_until
 -- Purge des archives échues. Ne détruit QUE ce dont le type de document
 -- prescrit explicitement la destruction, jamais ce qui est sous gel
 -- conservatoire. Chaque destruction laisse une trace d'audit.
+DROP FUNCTION IF EXISTS public.apply_retention(boolean);
 CREATE OR REPLACE FUNCTION public.apply_retention(p_dry_run boolean DEFAULT true)
-RETURNS TABLE (archive_id text, organization_id uuid, title text, retention_until date)
+RETURNS TABLE (archive_id uuid, organization_id uuid, title text, retention_until date)
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public, pg_temp
@@ -260,6 +261,7 @@ REVOKE EXECUTE ON FUNCTION public.apply_retention(boolean) FROM public, anon, au
 -- Remplace le filtrage client. Le classement combine la pertinence
 -- textuelle et la fraîcheur : à pertinence égale, l'archive la plus
 -- récente remonte.
+DROP FUNCTION IF EXISTS public.search_archives(text, uuid, date, date, uuid, integer, integer);
 CREATE OR REPLACE FUNCTION public.search_archives(
     p_query      text DEFAULT NULL,
     p_category   uuid DEFAULT NULL,
@@ -270,7 +272,7 @@ CREATE OR REPLACE FUNCTION public.search_archives(
     p_offset     integer DEFAULT 0
 )
 RETURNS TABLE (
-    id text, title text, summary text, category text,
+    id uuid, title text, summary text, category text,
     employee_name text, archive_date date, document_count integer,
     keywords text[], rank real, total_count bigint
 )

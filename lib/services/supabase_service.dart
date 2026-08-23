@@ -1,6 +1,7 @@
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../models/allowed_email.dart';
 import '../models/employee.dart';
 import '../models/application.dart';
 import '../models/archive_category.dart';
@@ -14,6 +15,8 @@ import '../models/action_history_entry.dart';
 import '../models/hr_metrics.dart';
 import '../models/in_app_notification.dart';
 import '../models/job_offer.dart';
+import '../models/signup_result.dart';
+import '../models/signup_rules.dart';
 import '../models/user_role.dart';
 import '../models/subscription.dart';
 import 'retention_service.dart';
@@ -29,61 +32,118 @@ class SupabaseService {
 
   // ─── Auth ────────────────────────────────────────────────────────────────
 
-  /// Inscription : crée un compte Supabase Auth + profil dans `employees`
-  /// Si `organizationId` est fourni, l'employé rejoint cette organisation (création par un admin).
-  /// Sinon (nouvel admin), on crée une nouvelle organisation automatiquement.
-  Future<String?> signUp({
+  /// Inscription d'une entreprise et de son administrateur (étapes 1 et 2).
+  ///
+  /// Passe par la fonction Edge `signup-company`, en service_role : la RLS ne
+  /// laisse plus aucune politique d'INSERT sur `organizations`, et
+  /// `employees_insert` exige `has_role('superAdmin','admin')` — qu'un inscrit
+  /// sans fiche employé ne peut satisfaire (20260822000000_rbac_rls.sql:117).
+  Future<SignUpResult> signUpCompany({
+    required String companyName,
+    required String companyEmail,
+    required String adminFullName,
+    required String adminEmail,
+    String? adminPersonalEmail,
+    required String password,
+  }) {
+    return _invokeSignUp('signup-company', {
+      'companyName': companyName.trim(),
+      'companyEmail': normalizeEmail(companyEmail),
+      'adminFullName': adminFullName.trim(),
+      'adminEmail': normalizeEmail(adminEmail),
+      'adminPersonalEmail':
+          adminPersonalEmail == null ? null : normalizeEmail(adminPersonalEmail),
+      'password': password,
+    }, confirmationEmailFor: normalizeEmail(adminEmail));
+  }
+
+  /// Inscription d'un employé, sous réserve de figurer sur la liste tenue par
+  /// l'administrateur de son entreprise.
+  ///
+  /// Ni le rôle ni le poste ne sont transmis : la fonction Edge les lit sur la
+  /// ligne d'autorisation. Les envoyer d'ici laisserait le client les choisir.
+  Future<SignUpResult> signUpEmployee({
     required String email,
+    required String fullName,
     String? personalEmail,
     required String password,
-    required String fullName,
-    String jobTitle = '',
-    UserRole role = UserRole.employe,
-    String? organizationId,
+  }) {
+    return _invokeSignUp('signup-employee', {
+      'email': normalizeEmail(email),
+      'fullName': fullName.trim(),
+      'personalEmail':
+          personalEmail == null ? null : normalizeEmail(personalEmail),
+      'password': password,
+    }, confirmationEmailFor: normalizeEmail(email));
+  }
+
+  Future<SignUpResult> _invokeSignUp(
+    String function,
+    Map<String, dynamic> body, {
+    required String confirmationEmailFor,
   }) async {
     try {
-      final res = await _client.auth.signUp(
-        email: email,
-        password: password,
-        data: {'full_name': fullName, 'job_title': jobTitle, 'role': role.name},
-      );
+      // `invoke` LÈVE une FunctionsHttpException sur tout statut non-2xx : il
+      // ne rend jamais une réponse portant un statut d'erreur. Les refus de la
+      // fonction Edge — dont EMAIL_NOT_ALLOWED — arrivent donc dans le `catch`
+      // ci-dessous, pas ici.
+      final res = await _client.functions.invoke(function, body: body);
+      final data = res.data;
+      final payload = data is Map ? Map<String, dynamic>.from(data) : const {};
 
-      if (res.user == null) return 'Erreur lors de la création du compte.';
-
-      String targetOrgId = organizationId ?? '';
-
-      // Si aucune organisation n'est fournie, c'est le premier admin : on crée l'organisation
-      if (targetOrgId.isEmpty) {
-        final orgRes = await _client
-            .from('organizations')
-            .insert({
-              'name': 'Organisation de $fullName',
-              'admin_id': res.user!.id,
-            })
-            .select('id')
-            .single();
-        targetOrgId = orgRes['id'] as String;
+      // `admin.createUser` ne déclenche aucun envoi : c'est ce rappel qui fait
+      // partir le mail de confirmation par le chemin GoTrue habituel. Son échec
+      // ne remet pas le compte en cause — l'utilisateur peut le redemander
+      // depuis l'écran de connexion.
+      if (payload['needsEmailConfirmation'] == true) {
+        try {
+          await _client.auth.resend(
+            type: OtpType.signup,
+            email: confirmationEmailFor,
+          );
+        } catch (e) {
+          debugPrint('Renvoi du mail de confirmation impossible : $e');
+        }
       }
 
-      // Insérer le profil dans la table employees
-      await _client.from('employees').insert({
-        'id': res.user!.id,
-        'full_name': fullName.trim(),
-        'email': email.trim().toLowerCase(),
-        'personal_email': personalEmail?.trim().toLowerCase(),
-        'password_hash': '',
-        'job_title': role == UserRole.employe ? jobTitle : '',
-        'role': role.name,
-        'is_active': true,
-        'organization_id': targetOrgId,
-      });
-
-      return null; // Succès
-    } on AuthException catch (e) {
-      return _translateAuthError(e.message);
+      return SignUpResult.success(
+        needsEmailConfirmation: payload['needsEmailConfirmation'] == true,
+      );
+    } on FunctionException catch (e) {
+      // `details` porte le corps JSON décodé de la réponse — c'est là que se
+      // trouvent `code` et `error`. Sur une panne réseau (FunctionsFetchException)
+      // ce n'est pas une Map : on retombe alors sur le message générique.
+      final details = e.details;
+      final payload =
+          details is Map ? Map<String, dynamic>.from(details) : const {};
+      return SignUpResult.failure(
+        _signUpErrorMessage(
+            payload['code'] as String?, payload['error'] as String?),
+        code: payload['code'] as String?,
+      );
     } catch (e) {
-      return 'Erreur réseau : $e';
+      return SignUpResult.failure('Erreur réseau : $e');
     }
+  }
+
+  /// Message affichable pour un code d'erreur d'inscription.
+  ///
+  /// Le message renvoyé par la fonction Edge est déjà en français ; on ne le
+  /// remplace que pour les cas où l'UI a besoin d'un texte plus précis.
+  String _signUpErrorMessage(String? code, String? serverMessage) {
+    switch (code) {
+      case 'EMAIL_NOT_ALLOWED':
+        return "Cette adresse ne figure pas dans la liste des employés "
+            "autorisés par votre entreprise. Contactez votre administrateur.";
+      case 'COMPANY_ALREADY_REGISTERED':
+        return "Cette entreprise est déjà inscrite. Demandez à votre "
+            "administrateur de vous ajouter à la liste des employés autorisés.";
+      case 'ALREADY_REGISTERED':
+      case 'EMAIL_TAKEN':
+        return 'Un compte existe déjà pour cette adresse. Connectez-vous ou '
+            'réinitialisez votre mot de passe.';
+    }
+    return serverMessage ?? "Erreur lors de la création du compte.";
   }
 
   /// Connexion via Supabase Auth
@@ -1186,6 +1246,113 @@ class SupabaseService {
         .eq('is_active', true)
         .order('sort_order', ascending: true);
     return data.map(SubscriptionPlan.fromJson).toList();
+  }
+
+  // ─── Liste d'autorisation des employés ───────────────────────────────────
+
+  /// Adresses pré-autorisées de l'organisation courante.
+  ///
+  /// La RLS réserve déjà cette table à l'administration du tenant
+  /// (`allowed_emails_select`) : un `employe` qui appellerait cette méthode
+  /// obtiendrait une liste vide, pas l'annuaire de l'entreprise.
+  Future<List<AllowedEmail>> fetchAllowedEmails() async {
+    final data = await _client
+        .from('allowed_employee_emails')
+        .select()
+        .order('created_at', ascending: false);
+    return data.map(AllowedEmail.fromJson).toList();
+  }
+
+  /// Ajoute une adresse à la liste. Retourne `null` si l'ajout a réussi.
+  Future<String?> addAllowedEmail({
+    required String email,
+    String? fullName,
+    required UserRole role,
+    String jobTitle = '',
+  }) async {
+    if (role == UserRole.superAdmin) {
+      return 'Le rôle super administrateur est réservé à la plateforme.';
+    }
+    try {
+      final organizationId = await _requireOrganizationId();
+      await _client.from('allowed_employee_emails').insert({
+        'organization_id': organizationId,
+        'email': normalizeEmail(email),
+        'full_name': fullName?.trim().isEmpty ?? true ? null : fullName!.trim(),
+        'role': role.name,
+        'job_title': role == UserRole.employe ? jobTitle : '',
+        'status': 'pending',
+        'invited_by': currentAuthUser?.id,
+      });
+      return null;
+    } on PostgrestException catch (e) {
+      return _translateAllowedEmailError(e);
+    } catch (e) {
+      return 'Erreur réseau : $e';
+    }
+  }
+
+  /// Modifie le rôle, le poste ou le nom d'une entrée en attente.
+  Future<void> updateAllowedEmail({
+    required String id,
+    String? fullName,
+    UserRole? role,
+    String? jobTitle,
+  }) async {
+    final patch = <String, dynamic>{};
+    if (fullName != null) {
+      patch['full_name'] = fullName.trim().isEmpty ? null : fullName.trim();
+    }
+    if (role != null) {
+      if (role == UserRole.superAdmin) {
+        throw ArgumentError(
+          'Le rôle super administrateur ne peut pas être pré-attribué.',
+        );
+      }
+      patch['role'] = role.name;
+    }
+    if (jobTitle != null) patch['job_title'] = jobTitle;
+    if (patch.isEmpty) return;
+    await _client.from('allowed_employee_emails').update(patch).eq('id', id);
+  }
+
+  /// Retire l'autorisation sans effacer la trace : l'inscription est refusée.
+  Future<void> revokeAllowedEmail(String id) async {
+    await _client
+        .from('allowed_employee_emails')
+        .update({'status': 'revoked'})
+        .eq('id', id);
+  }
+
+  /// Rouvre une autorisation révoquée.
+  Future<void> restoreAllowedEmail(String id) async {
+    await _client
+        .from('allowed_employee_emails')
+        .update({'status': 'pending'})
+        .eq('id', id);
+  }
+
+  /// Efface une entrée jamais utilisée. La politique `allowed_emails_delete`
+  /// refuse les entrées déjà consommées : celles-là se révoquent.
+  Future<void> deleteAllowedEmail(String id) async {
+    await _client.from('allowed_employee_emails').delete().eq('id', id);
+  }
+
+  String _translateAllowedEmailError(PostgrestException e) {
+    // 23505 : violation d'unicité sur `allowed_emails_email_key`. L'index est
+    // global — l'adresse peut donc être réservée par une AUTRE organisation,
+    // que la RLS empêche de voir. Le message doit couvrir les deux cas.
+    if (e.code == '23505') {
+      return 'Cette adresse est déjà enregistrée, ici ou dans une autre '
+          'organisation.';
+    }
+    if (e.code == '42501') {
+      return "Vous n'avez pas le droit de modifier cette liste.";
+    }
+    if (e.code == '23514') {
+      return 'Rôle ou statut invalide.';
+    }
+    return e.message;
   }
 
   // ─── Mappers ─────────────────────────────────────────────────────────────

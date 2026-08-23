@@ -222,6 +222,7 @@ CREATE TRIGGER guard_job_offer_workflow
 -- Un seul chemin pour dupliquer une offre ou instancier un modèle : la
 -- copie repart systématiquement en brouillon, sans référence ni date de
 -- publication héritées.
+DROP FUNCTION IF EXISTS public.duplicate_job_offer(uuid, boolean, text);
 CREATE OR REPLACE FUNCTION public.duplicate_job_offer(
     p_source_id  uuid,
     p_as_template boolean DEFAULT false,
@@ -275,6 +276,7 @@ GRANT EXECUTE ON FUNCTION public.duplicate_job_offer(uuid, boolean, text) TO aut
 -- différé n'aura qu'à exécuter :
 --     GRANT SELECT ON public.public_job_offers TO anon;
 -- et à ajouter une politique de lecture anonyme sur job_offers.
+DROP VIEW IF EXISTS public.public_job_offers;
 CREATE OR REPLACE VIEW public.public_job_offers AS
 SELECT
     o.id,

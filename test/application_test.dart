@@ -34,7 +34,7 @@ Application application({
   return Application(
     id: 'app-1',
     organizationId: 'org-a',
-    candidateId: 'cand_1',
+    candidateId: '7d2e4f60-2222-4b3c-9d4e-000000000001',
     jobOfferId: jobOfferId,
     stageId: stageId,
     appliedAt: appliedAt ?? now.subtract(const Duration(days: 30)),
@@ -140,7 +140,7 @@ void main() {
       final a = Application.fromJson({
         'id': 'app-9',
         'organization_id': 'org-a',
-        'candidate_id': 'cand_9',
+        'candidate_id': '7d2e4f60-2222-4b3c-9d4e-000000000009',
         'job_offer_id': 'off-9',
         'stage_id': 'st-2',
         'source': 'cooptation',

@@ -64,12 +64,16 @@ CREATE INDEX IF NOT EXISTS employees_org ON public.employees (organization_id);
 -- ---------------------------------------------------------------------
 -- daily_archives — l'archive journalière (§5.1)
 -- ---------------------------------------------------------------------
--- `id` est du TEXTE et non un uuid : le client génère `arc_<millis>`
--- (`app_state.dart:412`). Deux dépôts dans la même milliseconde entrent
--- donc en collision, et les identifiants sont énumérables — à reprendre
--- dans un lot dédié, la bascule vers uuid touchant des données existantes.
+-- `id` est un uuid. Cette baseline le déclarait `text` parce qu'elle avait été
+-- reconstituée depuis le code Dart — qui fabriquait `arc_<millis>` — et non
+-- relevée sur la base réelle. La table ayant été créée à la main dans le
+-- tableau de bord, le `CREATE TABLE IF NOT EXISTS` ci-dessous n'a jamais
+-- rectifié quoi que ce soit en production : la divergence n'apparaissait que
+-- sur une base reconstruite à neuf, où la clé étrangère
+-- `document_versions.archive_id` (migration 20260822000300) devenait
+-- impossible à poser.
 CREATE TABLE IF NOT EXISTS public.daily_archives (
-    id                text PRIMARY KEY,
+    id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id   uuid NOT NULL REFERENCES public.organizations(id),
     employee_id       uuid REFERENCES public.employees(id),
     employee_name     text NOT NULL DEFAULT '',
@@ -98,7 +102,10 @@ CREATE INDEX IF NOT EXISTS daily_archives_live
 -- candidates — le vivier RH (§5.3)
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.candidates (
-    id               text PRIMARY KEY,          -- `cand_<millis>`
+    -- uuid, et non le `cand_<millis>` que supposait cette baseline : c'est ce
+    -- décalage qui faisait échouer la clé étrangère `applications.candidate_id`
+    -- (migration 20260822000500) à la première application en production.
+    id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id  uuid NOT NULL REFERENCES public.organizations(id),
     full_name        text NOT NULL,
     target_position  text NOT NULL DEFAULT '',
@@ -118,7 +125,9 @@ CREATE INDEX IF NOT EXISTS candidates_org_date
 -- logistics_items — pièces et factures
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.logistics_items (
-    id                 text PRIMARY KEY,        -- `log_<millis>`
+    -- uuid également (relevé sur la base réelle), malgré le `log_<millis>`
+    -- que le client fabriquait.
+    id                 uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id    uuid NOT NULL REFERENCES public.organizations(id),
     document_type      text NOT NULL DEFAULT 'autre',
     reference          text NOT NULL DEFAULT '',
@@ -150,8 +159,12 @@ CREATE TABLE IF NOT EXISTS public.action_history_entries (
     action             text NOT NULL,
     details            text NOT NULL DEFAULT '',
     timestamp          timestamptz NOT NULL DEFAULT now(),
-    candidate_id       text REFERENCES public.candidates(id),
-    logistics_item_id  text REFERENCES public.logistics_items(id)
+    -- uuid, comme les clés primaires qu'elles pointent (relevé sur la base
+    -- réelle). Déclarées `text`, ces deux colonnes rendaient la table
+    -- impossible à créer dès que `candidates.id` et `logistics_items.id`
+    -- retrouvaient leur vrai type.
+    candidate_id       uuid REFERENCES public.candidates(id),
+    logistics_item_id  uuid REFERENCES public.logistics_items(id)
 );
 
 ALTER TABLE public.action_history_entries

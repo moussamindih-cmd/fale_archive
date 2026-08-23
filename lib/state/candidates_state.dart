@@ -1,3 +1,4 @@
+import 'package:uuid/uuid.dart';
 import 'package:flutter/material.dart';
 import '../models/candidate.dart';
 import '../models/attached_file.dart';
@@ -5,6 +6,8 @@ import '../models/action_history_entry.dart';
 import '../services/supabase_service.dart';
 
 class CandidatesState extends ChangeNotifier {
+  static const _uuid = Uuid();
+
   // ─── Store ──────────────────────────────────────────────────────────────
   final List<Candidate> _candidates = [];
 
@@ -136,7 +139,12 @@ class CandidatesState extends ChangeNotifier {
     required String actionUserName,
   }) async {
     final candidate = Candidate(
-      id: 'cand_${DateTime.now().millisecondsSinceEpoch}',
+      // Identifiant uuid, et non plus `cand_<millis>`.
+      // Les colonnes `id` sont des uuid en base : la chaîne préfixée était rejetée
+      // (« invalid input syntax for type uuid »). Elle entrait de surcroît en
+      // collision dès deux créations dans la même milliseconde, et se laissait
+      // énumérer.
+      id: _uuid.v4(),
       fullName: fullName.trim(),
       targetPosition: targetPosition,
       email: email.trim(),

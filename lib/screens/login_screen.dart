@@ -6,6 +6,7 @@ import '../theme/app_theme.dart';
 import '../services/mfa_service.dart';
 import 'auth/forgot_password_screen.dart';
 import 'auth/two_factor_challenge_screen.dart';
+import 'auth/company_register_screen.dart';
 import 'register_screen.dart';
 import 'home_screen.dart';
 import '../theme/glassmorphism.dart';
@@ -316,28 +317,30 @@ class _LoginScreenState extends State<LoginScreen> {
                       ).animate().fade(delay: 350.ms),
 
                       const SizedBox(height: 8),
-                      Wrap(
-                        alignment: WrapAlignment.center,
-                        crossAxisAlignment: WrapCrossAlignment.center,
+                      // Deux parcours distincts : une entreprise crée son
+                      // espace et son administrateur ; un employé rejoint une
+                      // entreprise déjà inscrite, si son adresse figure sur la
+                      // liste tenue par cet administrateur.
+                      Column(
                         children: [
                           Text(
-                            'Pas encore de compte ? ',
+                            'Pas encore de compte ?',
                             style: GoogleFonts.outfit(
                               color: isDark ? kDarkTextSecondary : kTextSecondary,
                               fontSize: 14,
                               fontWeight: FontWeight.w500,
                             ),
                           ),
-                          TextButton(
-                            onPressed: () => Navigator.of(context).push(
-                              PageRouteBuilder(
-                                pageBuilder: (_, __, ___) =>
-                                    const RegisterScreen(),
-                                transitionsBuilder: (_, animation, __, child) =>
-                                    FadeTransition(opacity: animation, child: child),
-                              ),
-                            ),
-                            child: const Text('Créer un compte'),
+                          const SizedBox(height: 4),
+                          TextButton.icon(
+                            icon: const Icon(Icons.business_outlined, size: 18),
+                            onPressed: () => _push(context, const CompanyRegisterScreen()),
+                            label: const Text('Inscrire mon entreprise'),
+                          ),
+                          TextButton.icon(
+                            icon: const Icon(Icons.badge_outlined, size: 18),
+                            onPressed: () => _push(context, const RegisterScreen()),
+                            label: const Text('Rejoindre mon entreprise'),
                           ),
                         ],
                       ).animate().fade(delay: 400.ms),
@@ -349,6 +352,16 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _push(BuildContext context, Widget screen) {
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        pageBuilder: (_, __, ___) => screen,
+        transitionsBuilder: (_, animation, __, child) =>
+            FadeTransition(opacity: animation, child: child),
       ),
     );
   }

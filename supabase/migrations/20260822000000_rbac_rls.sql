@@ -359,6 +359,42 @@ CREATE POLICY subscription_audit_select ON public.subscription_audit_log FOR SEL
 
 REVOKE INSERT, UPDATE, DELETE ON public.subscription_audit_log FROM authenticated, anon;
 
+-- Déduplication préalable de la grille tarifaire.
+--
+-- Le seed de `20260817_init_saas.sql` porte un `ON CONFLICT DO NOTHING` qui
+-- ne cible aucune contrainte : il n'a donc jamais rien dédupliqué, et chaque
+-- tentative de `db push` a réinséré la grille entière. L'index unique
+-- ci-dessous ne peut pas naître tant que ces doublons subsistent.
+--
+-- Ligne conservée : la plus ancienne de chaque nom. Les abonnements sont
+-- repointés AVANT toute suppression — `subscriptions.plan_id` est NOT NULL
+-- et porte une clé étrangère vers `subscription_plans(id)`.
+--
+-- Les deux instructions sont sans effet sur une base déjà saine : elles
+-- restent rejouables.
+
+UPDATE public.subscriptions s
+SET    plan_id = keep.id
+FROM   public.subscription_plans p
+CROSS  JOIN LATERAL (
+           SELECT k.id
+           FROM   public.subscription_plans k
+           WHERE  k.name = p.name
+           ORDER  BY k.created_at, k.id
+           LIMIT  1
+       ) keep
+WHERE  s.plan_id = p.id
+  AND  p.id <> keep.id;
+
+DELETE FROM public.subscription_plans p
+WHERE  p.id <> (
+           SELECT k.id
+           FROM   public.subscription_plans k
+           WHERE  k.name = p.name
+           ORDER  BY k.created_at, k.id
+           LIMIT  1
+       );
+
 -- Empêche le seed de dupliquer les plans à chaque `db push`
 -- (l'ON CONFLICT DO NOTHING d'origine ne matchait aucune contrainte).
 CREATE UNIQUE INDEX IF NOT EXISTS subscription_plans_name_key

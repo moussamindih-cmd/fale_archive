@@ -64,3 +64,13 @@ verify_jwt = true
 
 [functions.subscription-status]
 verify_jwt = true
+
+# L'inscription est publique par nature : l'appelant n'a pas encore de compte,
+# donc pas de JWT. Ces deux fonctions sont le SEUL chemin d'écriture pour créer
+# une organisation ou un employé — la RLS bloque tout le reste (voir
+# 20260822000000_rbac_rls.sql:117).
+[functions.signup-company]
+verify_jwt = false
+
+[functions.signup-employee]
+verify_jwt = false

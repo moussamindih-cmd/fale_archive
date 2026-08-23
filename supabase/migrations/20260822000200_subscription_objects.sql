@@ -12,6 +12,7 @@
 
 -- Période de grâce : nombre de jours après l'échéance pendant lesquels
 -- l'accès reste ouvert, défini par le plan (`grace_period_days`).
+DROP VIEW IF EXISTS public.active_subscriptions;
 CREATE OR REPLACE VIEW public.active_subscriptions AS
 SELECT
     s.id,
@@ -59,6 +60,7 @@ GRANT SELECT ON public.active_subscriptions TO authenticated;
 -- Bascule en `expired` les abonnements payés dont l'échéance ET la période
 -- de grâce sont dépassées. Idempotente : rejouable sans effet de bord.
 -- Chaque bascule laisse une trace dans subscription_audit_log.
+DROP FUNCTION IF EXISTS public.expire_overdue_subscriptions();
 CREATE OR REPLACE FUNCTION public.expire_overdue_subscriptions()
 RETURNS integer
 LANGUAGE plpgsql

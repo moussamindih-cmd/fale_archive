@@ -1,3 +1,4 @@
+import 'package:uuid/uuid.dart';
 import 'package:flutter/material.dart';
 import '../models/logistics_item.dart';
 import '../models/attached_file.dart';
@@ -5,6 +6,8 @@ import '../models/action_history_entry.dart';
 import '../services/supabase_service.dart';
 
 class LogisticsState extends ChangeNotifier {
+  static const _uuid = Uuid();
+
   // ─── Store ──────────────────────────────────────────────────────────────
   final List<LogisticsItem> _items = [];
 
@@ -143,7 +146,12 @@ class LogisticsState extends ChangeNotifier {
       details: 'Document logistique enregistré.',
     );
     final item = LogisticsItem(
-      id: 'log_${DateTime.now().millisecondsSinceEpoch}',
+      // Identifiant uuid, et non plus `log_<millis>`.
+      // Les colonnes `id` sont des uuid en base : la chaîne préfixée était rejetée
+      // (« invalid input syntax for type uuid »). Elle entrait de surcroît en
+      // collision dès deux créations dans la même milliseconde, et se laissait
+      // énumérer.
+      id: _uuid.v4(),
       documentType: documentType,
       reference: reference.trim(),
       amount: amount,

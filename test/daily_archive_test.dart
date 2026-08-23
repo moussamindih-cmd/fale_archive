@@ -10,7 +10,7 @@ DailyArchive build({
   String jobTitle = 'Secrétaire',
 }) {
   return DailyArchive(
-    id: 'arc_1750000000',
+    id: '0f9c1b3a-1111-4a2b-8c3d-000000000001',
     employeeId: 'emp-1',
     employeeName: 'Awa Sow',
     jobTitle: jobTitle,
@@ -123,7 +123,7 @@ void main() {
 
     test('relit une archive écrite avec l\'ancien format camelCase', () {
       final ancienne = DailyArchive.fromJson({
-        'id': 'arc_1',
+        'id': '0f9c1b3a-1111-4a2b-8c3d-000000000002',
         'employee_id': 'emp-1',
         'employee_name': 'Awa Sow',
         'job_title': 'Comptable',

@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../state/app_state.dart';
 import '../../models/employee.dart';
+import '../../models/job_titles.dart';
+import '../../models/signup_rules.dart';
+import 'allowed_emails_screen.dart';
+import '../../models/subscription.dart';
 import '../../models/user_role.dart';
 import '../../theme/app_theme.dart';
 
@@ -14,13 +18,22 @@ class UserManagementScreen extends StatefulWidget {
   State<UserManagementScreen> createState() => _UserManagementScreenState();
 }
 
-class _UserManagementScreenState extends State<UserManagementScreen> {
+class _UserManagementScreenState extends State<UserManagementScreen>
+    with SingleTickerProviderStateMixin {
   final _searchCtrl = TextEditingController();
   String _searchText = '';
   UserRole? _filterRole;
+  late final TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
 
   @override
   void dispose() {
+    _tabController.dispose();
     _searchCtrl.dispose();
     super.dispose();
   }
@@ -56,15 +69,48 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           appBar: AppBar(
             title: const Text('Gestion des utilisateurs'),
             backgroundColor: Colors.white,
+            bottom: TabBar(
+              controller: _tabController,
+              labelStyle: GoogleFonts.outfit(fontWeight: FontWeight.w700),
+              tabs: const [
+                Tab(icon: Icon(Icons.groups_outlined), text: 'Membres'),
+                Tab(
+                  icon: Icon(Icons.mark_email_read_outlined),
+                  text: 'Autorisations',
+                ),
+              ],
+            ),
           ),
-          floatingActionButton: FloatingActionButton.extended(
-            backgroundColor: isQuotaReached ? Colors.grey : const Color(0xFFDC2626),
-            foregroundColor: Colors.white,
-            icon: const Icon(Icons.person_add_rounded),
-            label: Text(isQuotaReached ? 'Quota atteint' : 'Ajouter', style: GoogleFonts.outfit(fontWeight: FontWeight.w600)),
-            onPressed: isQuotaReached ? null : () => _showUserFormDialog(context, admin, null),
+          body: TabBarView(
+            controller: _tabController,
+            children: [
+              _membersTab(
+                context,
+                admin,
+                filtered,
+                subInfo,
+                maxUsers,
+                currentUsers,
+                isQuotaReached,
+              ),
+              AllowedEmailsScreen(appState: widget.appState, admin: admin),
+            ],
           ),
-          body: Column(
+        );
+      },
+    );
+  }
+
+  Widget _membersTab(
+    BuildContext context,
+    Employee admin,
+    List<Employee> filtered,
+    SubscriptionInfo? subInfo,
+    int maxUsers,
+    int currentUsers,
+    bool isQuotaReached,
+  ) {
+    return Column(
             children: [
               // Quota indicator
               if (subInfo != null && maxUsers != 9999)
@@ -144,9 +190,6 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                       ),
               ),
             ],
-          ),
-        );
-      },
     );
   }
 
@@ -238,7 +281,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               onSelected: (action) {
                 switch (action) {
                   case 'edit':
-                    _showUserFormDialog(context, admin, emp);
+                    _showEditUserDialog(context, admin, emp);
                     break;
                   case 'role':
                     _showRoleDialog(context, emp, admin);
@@ -313,21 +356,25 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     );
   }
 
-  void _showUserFormDialog(BuildContext context, Employee admin, Employee? editing) {
-    final nameCtrl = TextEditingController(text: editing?.fullName ?? '');
-    final emailCtrl = TextEditingController(text: editing?.email ?? '');
-    final passCtrl = TextEditingController(text: editing?.password ?? '');
-    String? selectedJob = editing?.jobTitle;
-    UserRole selectedRole = editing?.role ?? UserRole.employe;
+  /// Édition d'un membre existant.
+  ///
+  /// La branche de création a été retirée : elle appelait `register()`, donc
+  /// `auth.signUp` sur le client courant — Supabase remplaçait alors la session
+  /// de l'administrateur par celle du compte qu'il venait de créer — et posait
+  /// le mot de passe '123456' par défaut. Les comptes naissent désormais de
+  /// l'auto-inscription, autorisée depuis l'onglet « Autorisations ».
+  void _showEditUserDialog(BuildContext context, Employee admin, Employee editing) {
+    final nameCtrl = TextEditingController(text: editing.fullName);
+    final emailCtrl = TextEditingController(text: editing.email);
+    String? selectedJob = editing.jobTitle.isEmpty ? null : editing.jobTitle;
+    UserRole selectedRole = editing.role;
     final formKey = GlobalKey<FormState>();
-
-    const jobs = ['Secrétaire', 'Comptable', 'Gestionnaire', 'Conseiller Principal', 'Conseiller Adjoint'];
 
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
-          title: Text(editing != null ? 'Modifier l\'utilisateur' : 'Nouvel utilisateur'),
+          title: const Text('Modifier l\'utilisateur'),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           content: SingleChildScrollView(
             child: Form(
@@ -345,12 +392,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   TextFormField(
                     controller: emailCtrl,
                     decoration: const InputDecoration(labelText: 'Email *', prefixIcon: Icon(Icons.email_outlined, size: 20)),
-                    validator: (v) => (v == null || !v.contains('@')) ? 'Email invalide' : null,
-                  ),
-                  const SizedBox(height: 10),
-                  TextFormField(
-                    controller: passCtrl,
-                    decoration: const InputDecoration(labelText: 'Mot de passe', prefixIcon: Icon(Icons.lock_outlined, size: 20)),
+                    validator: (v) => isValidEmail(v ?? '') ? null : 'Email invalide',
                   ),
                   const SizedBox(height: 14),
                   Text('Rôle :', style: GoogleFonts.outfit(fontWeight: FontWeight.w600, fontSize: 13)),
@@ -358,7 +400,13 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   DropdownButtonFormField<UserRole>(
                     initialValue: selectedRole,
                     decoration: const InputDecoration(prefixIcon: Icon(Icons.shield_outlined, size: 20)),
-                    items: UserRole.values.map((r) => DropdownMenuItem(value: r, child: Text(r.label))).toList(),
+                    // `superAdmin` est exclu : il traverse les organisations et
+                    // `guard_employee_privileges()` refuse de toute façon de le
+                    // laisser attribuer par un simple administrateur.
+                    items: UserRole.values
+                        .where((r) => r != UserRole.superAdmin)
+                        .map((r) => DropdownMenuItem(value: r, child: Text(r.label)))
+                        .toList(),
                     onChanged: (r) => setDialogState(() => selectedRole = r!),
                   ),
                   if (selectedRole == UserRole.employe) ...[
@@ -369,7 +417,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                       initialValue: selectedJob,
                       decoration: const InputDecoration(prefixIcon: Icon(Icons.work_outline, size: 20)),
                       hint: const Text('Sélectionner...'),
-                      items: jobs.map((j) => DropdownMenuItem(value: j, child: Text(j))).toList(),
+                      items: kJobTitles.map((j) => DropdownMenuItem(value: j, child: Text(j))).toList(),
                       onChanged: (j) => setDialogState(() => selectedJob = j),
                     ),
                   ],
@@ -382,33 +430,18 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             ElevatedButton(
               onPressed: () async {
                 if (!formKey.currentState!.validate()) return;
-                if (editing != null) {
-                  await widget.appState.updateEmployee(
-                    id: editing.id,
-                    fullName: nameCtrl.text,
-                    email: emailCtrl.text,
-                    jobTitle: selectedRole == UserRole.employe ? (selectedJob ?? '') : '',
-                    role: selectedRole,
-                    actionUserName: admin.fullName,
-                  );
-                } else {
-                  final err = await widget.appState.register(
-                    fullName: nameCtrl.text,
-                    email: emailCtrl.text,
-                    password: passCtrl.text.isEmpty ? '123456' : passCtrl.text,
-                    jobTitle: selectedRole == UserRole.employe ? (selectedJob ?? '') : '',
-                    role: selectedRole,
-                  );
-                  if (err != null) {
-                    if (!context.mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err), backgroundColor: const Color(0xFFEF4444)));
-                    return;
-                  }
-                }
-                if (!context.mounted) return;
-                Navigator.pop(ctx);
+                final navigator = Navigator.of(ctx);
+                await widget.appState.updateEmployee(
+                  id: editing.id,
+                  fullName: nameCtrl.text,
+                  email: emailCtrl.text,
+                  jobTitle: selectedRole == UserRole.employe ? (selectedJob ?? '') : '',
+                  role: selectedRole,
+                  actionUserName: admin.fullName,
+                );
+                navigator.pop();
               },
-              child: Text(editing != null ? 'Enregistrer' : 'Créer'),
+              child: const Text('Enregistrer'),
             ),
           ],
         ),

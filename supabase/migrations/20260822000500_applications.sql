@@ -58,8 +58,12 @@ CREATE TABLE IF NOT EXISTS public.applications (
     id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id uuid NOT NULL REFERENCES public.organizations(id),
 
-    -- `candidates.id` est du TEXTE (`cand_<millis>`), pas un uuid.
-    candidate_id    text NOT NULL REFERENCES public.candidates(id) ON DELETE CASCADE,
+    -- `candidates.id` est un uuid. La baseline le déclarait `text` en se fiant
+    -- au `cand_<millis>` fabriqué par le client, mais elle avait été
+    -- reconstituée depuis le code Dart, pas relevée sur la base : les tables
+    -- créées à la main dans le tableau de bord ont toujours été en uuid, et le
+    -- `CREATE TABLE IF NOT EXISTS` de la baseline n'y a jamais rien changé.
+    candidate_id    uuid NOT NULL REFERENCES public.candidates(id) ON DELETE CASCADE,
 
     -- Nullable : une candidature spontanée ne vise aucune offre, et les
     -- candidatures déjà en base n'en ont pas.
