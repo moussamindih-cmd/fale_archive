@@ -1,0 +1,76 @@
+# Configuration du projet Supabase.
+#
+# Ce fichier manquait : sans lui, `verify_jwt` prend sa valeur par défaut
+# (true) pour toutes les fonctions. Le rappel CinetPay, qui arrive sans JWT,
+# était donc rejeté par la passerelle avant même d'atteindre le handler —
+# l'activation des abonnements ne tenait plus que sur la boucle de
+# sondage du client (`subscription_service.dart:125`).
+
+project_id = "rljzphdwqfwssdwwdbnr"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "storage"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+major_version = 15
+
+[studio]
+enabled = true
+port = 54323
+
+[auth]
+enabled = true
+site_url = "http://127.0.0.1:5000"
+additional_redirect_urls = ["http://127.0.0.1:5000"]
+jwt_expiry = 3600
+enable_refresh_token_rotation = true
+enable_signup = true
+
+[auth.email]
+enable_signup = true
+enable_confirmations = true
+
+# TOTP pour l'authentification à deux facteurs (§5.5.3).
+[auth.mfa]
+max_enrolled_factors = 3
+
+[auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true
+
+[storage]
+enabled = true
+file_size_limit = "50MiB"
+
+# --- Fonctions Edge ---------------------------------------------------
+
+# Le rappel du prestataire de paiement n'est pas authentifié par JWT : il est
+# authentifié par signature HMAC, vérifiée dans le handler
+# (`_shared/auth.ts::verifyWebhookSignature`).
+[functions.payment-webhook]
+verify_jwt = false
+
+# Les trois autres sont appelées par l'application, JWT obligatoire.
+[functions.payment-initiate]
+verify_jwt = true
+
+[functions.payment-verify]
+verify_jwt = true
+
+[functions.subscription-status]
+verify_jwt = true
+
+# L'inscription est publique par nature : l'appelant n'a pas encore de compte,
+# donc pas de JWT. Ces deux fonctions sont le SEUL chemin d'écriture pour créer
+# une organisation ou un employé — la RLS bloque tout le reste (voir
+# 20260822000000_rbac_rls.sql:117).
+[functions.signup-company]
+verify_jwt = false
+
+[functions.signup-employee]
+verify_jwt = false

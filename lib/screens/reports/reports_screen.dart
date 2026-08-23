@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -5,6 +8,8 @@ import 'package:printing/printing.dart';
 import '../../models/daily_archive.dart';
 import '../../models/logistics_item.dart';
 import '../../models/candidate.dart';
+import '../../services/archive_export_service.dart';
+import '../../services/download/file_saver.dart';
 import '../../services/report_export_service.dart';
 import '../../state/app_state.dart';
 import '../../state/candidates_state.dart';
@@ -131,11 +136,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            'Exportez et imprimez les récapitulatifs au format PDF ou CSV.',
-                            style: GoogleFonts.outfit(
-                              fontSize: 12,
-                              color: Colors.white.withValues(alpha: 0.85),
-                            ),
+                            'Exportez les récapitulatifs en PDF ou CSV, ou l\'intégralité des '
+                            'archives et de leurs pièces en ZIP.',
+                            style: GoogleFonts.outfit(fontSize: 12, color: Colors.white.withValues(alpha: 0.85)),
                           ),
                         ],
                       ),
@@ -320,7 +323,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                       ),
                     ),
                   ),
-                  if (_selectedType != ReportType.candidates) ...[
+                  ...[
                     const SizedBox(width: 12),
                     OutlinedButton.icon(
                       icon: const Icon(Icons.table_chart_rounded, size: 18),
@@ -334,7 +337,23 @@ class _ReportsScreenState extends State<ReportsScreen> {
                           borderRadius: BorderRadius.circular(16),
                         ),
                       ),
-                      onPressed: _exportCsv,
+                      onPressed: _isGenerating ? null : _exportCsv,
+                    ),
+                  ],
+                  // L'export ZIP embarque les pièces jointes elles-mêmes,
+                  // ce que ni le PDF ni le CSV ne font (§5.1.5).
+                  if (_selectedType == ReportType.archives) ...[
+                    const SizedBox(width: 12),
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.folder_zip_outlined, size: 18),
+                      label: const Text('Export ZIP'),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 16, horizontal: 20),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16)),
+                      ),
+                      onPressed: _isGenerating ? null : _exportZip,
                     ),
                   ],
                 ],
@@ -391,6 +410,18 @@ class _ReportsScreenState extends State<ReportsScreen> {
     return DateTime.now().subtract(Duration(days: _selectedPeriodDays));
   }
 
+  /// Archives retenues par la période sélectionnée.
+  ///
+  /// Extrait de `_generatePdf` : les trois exports doivent porter sur
+  /// exactement le même jeu de données, sans quoi le PDF et le ZIP d'un
+  /// même écran ne racontent pas la même chose.
+  List<DailyArchive> _filteredArchives() {
+    final startDate = _startDate;
+    final list = widget.appState.archives;
+    if (startDate == null) return list;
+    return list.where((a) => a.archiveDate.isAfter(startDate)).toList();
+  }
+
   Future<void> _generatePdf(String userName) async {
     setState(() => _isGenerating = true);
     try {
@@ -398,28 +429,20 @@ class _ReportsScreenState extends State<ReportsScreen> {
       final endDate = DateTime.now();
 
       switch (_selectedType) {
-        case ReportType.archives:
-          {
-            List<DailyArchive> list = widget.appState.archives;
-            if (startDate != null) {
-              list = list
-                  .where((a) => a.archiveDate.isAfter(startDate))
-                  .toList();
-            }
-            final pdfBytes =
-                await ReportExportService.generateArchivesReportPdf(
-                  archives: list,
-                  generatedBy: userName,
-                  startDate: startDate,
-                  endDate: endDate,
-                );
-            await Printing.layoutPdf(
-              onLayout: (_) => pdfBytes,
-              name:
-                  'Bordereau_Archives_${DateFormat('yyyyMMdd').format(DateTime.now())}.pdf',
-            );
-            break;
-          }
+        case ReportType.archives: {
+          final list = _filteredArchives();
+          final pdfBytes = await ReportExportService.generateArchivesReportPdf(
+            archives: list,
+            generatedBy: userName,
+            startDate: startDate,
+            endDate: endDate,
+          );
+          await Printing.layoutPdf(
+            onLayout: (_) => pdfBytes,
+            name: 'Bordereau_Archives_${DateFormat('yyyyMMdd').format(DateTime.now())}.pdf',
+          );
+          break;
+        }
 
         case ReportType.logistics:
           {
@@ -463,58 +486,126 @@ class _ReportsScreenState extends State<ReportsScreen> {
     }
   }
 
-  void _exportCsv() {
-    String csvData = '';
-    String filename = '';
+  /// Export CSV réel (§5.1.5 / §5.4.3).
+  ///
+  /// Écrivait auparavant le CSV dans une boîte de dialogue — aucun fichier
+  /// n'était jamais produit, malgré le libellé « Exporter ».
+  Future<void> _exportCsv() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final String csvData;
+    final String filename;
 
-    if (_selectedType == ReportType.archives) {
-      csvData = ReportExportService.generateArchivesCsv(
-        widget.appState.archives,
-      );
-      filename = 'export_archives.csv';
-    } else if (_selectedType == ReportType.logistics) {
-      csvData = ReportExportService.generateLogisticsCsv(
-        widget.logisticsState.items,
-      );
-      filename = 'export_logistique.csv';
+    switch (_selectedType) {
+      case ReportType.archives:
+        csvData = ReportExportService.generateArchivesCsv(
+          _filteredArchives(),
+        );
+        filename = 'export_archives_${_stampNow()}.csv';
+      case ReportType.logistics:
+        csvData = ReportExportService.generateLogisticsCsv(
+          widget.logisticsState.items,
+        );
+        filename = 'export_logistique_${_stampNow()}.csv';
+      case ReportType.candidates:
+        csvData = ReportExportService.generateCandidatesCsv(
+          widget.candidatesState.candidates,
+        );
+        filename = 'export_candidats_${_stampNow()}.csv';
     }
 
-    showDialog(
+    try {
+      // BOM UTF-8 : sans lui, Excel en configuration francophone affiche les
+      // accents comme des caractères de contrôle.
+      final bytes = Uint8List.fromList(utf8.encode('\u{FEFF}$csvData'));
+      final destination = await saveFile(
+        bytes: bytes,
+        fileName: filename,
+        mimeType: 'text/csv;charset=utf-8',
+      );
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(
+        content: Text('Export enregistré : $destination'),
+        behavior: SnackBarBehavior.floating,
+      ));
+    } catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(
+        content: Text('Échec de l\'export : $e'),
+        backgroundColor: kDanger,
+        behavior: SnackBarBehavior.floating,
+      ));
+    }
+  }
+
+  /// Export ZIP des archives et de leurs pièces jointes (§5.1.5).
+  Future<void> _exportZip() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final archives = _filteredArchives();
+
+    if (archives.isEmpty) {
+      messenger.showSnackBar(const SnackBar(
+        content: Text('Aucune archive à exporter sur cette période.'),
+        behavior: SnackBarBehavior.floating,
+      ));
+      return;
+    }
+
+    // Le ZIP télécharge chaque pièce depuis le stockage : sur un gros lot
+    // cela prend plusieurs secondes, il faut le montrer.
+    final progress = ValueNotifier<String>('Préparation…');
+    showDialog<void>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(
-          'Export CSV ($filename)',
-          style: GoogleFonts.outfit(fontWeight: FontWeight.w700),
-        ),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        content: SizedBox(
-          width: 500,
-          child: SingleChildScrollView(
-            child: SelectableText(
-              csvData,
-              style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        content: Row(
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(width: 20),
+            Expanded(
+              child: ValueListenableBuilder<String>(
+                valueListenable: progress,
+                builder: (_, value, __) => Text(value),
+              ),
             ),
-          ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Fermer'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Données CSV prêtes ($filename).'),
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
-            },
-            child: const Text('Copier / Confirmer'),
-          ),
-        ],
       ),
     );
+
+    try {
+      final result = await ArchiveExportService.exportToZip(
+        archives: archives,
+        generatedBy: widget.appState.currentEmployee?.fullName ?? 'Inconnu',
+        onProgress: (done, total) =>
+            progress.value = 'Archive $done sur $total…',
+      );
+      if (!mounted) return;
+      Navigator.of(context).pop();
+
+      messenger.showSnackBar(SnackBar(
+        content: Text(
+          result.isComplete
+              ? '${result.archiveCount} archives et ${result.fileCount} pièces '
+                  'exportées vers ${result.destination}.'
+              : '${result.fileCount} pièces exportées, '
+                  '${result.failures.length} illisibles — voir le manifeste.',
+        ),
+        backgroundColor: result.isComplete ? null : kWarning,
+        behavior: SnackBarBehavior.floating,
+      ));
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      messenger.showSnackBar(SnackBar(
+        content: Text('Échec de l\'export ZIP : $e'),
+        backgroundColor: kDanger,
+        behavior: SnackBarBehavior.floating,
+      ));
+    } finally {
+      progress.dispose();
+    }
   }
+
+  static String _stampNow() =>
+      DateFormat('yyyyMMdd-HHmm').format(DateTime.now());
 }

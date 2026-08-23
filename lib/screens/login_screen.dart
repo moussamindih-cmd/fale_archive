@@ -1,25 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import '../state/app_state.dart';
-import '../state/candidates_state.dart';
-import '../state/logistics_state.dart';
-import '../state/theme_state.dart';
-import '../state/notifications_state.dart';
-import '../state/subscription_state.dart';
+import '../state/app_scope.dart';
 import '../theme/app_theme.dart';
+import '../services/mfa_service.dart';
+import 'auth/forgot_password_screen.dart';
+import 'auth/two_factor_challenge_screen.dart';
+import 'auth/company_register_screen.dart';
 import 'register_screen.dart';
 import 'home_screen.dart';
 import '../theme/glassmorphism.dart';
 import '../widgets/mesh_background.dart';
-
-// State singletons partagés entre les écrans
-final _appState = AppState();
-final _candidatesState = CandidatesState();
-final _logisticsState = LogisticsState();
-final _themeState = ThemeState();
-final _notificationsState = NotificationsState();
-final _subscriptionState = SubscriptionState();
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -49,8 +40,9 @@ class _LoginScreenState extends State<LoginScreen> {
       _isLoading = true;
       _errorMessage = null;
     });
+    final appState = AppScope.of(context).appState;
     await Future.delayed(const Duration(milliseconds: 500));
-    final error = await _appState.login(_emailCtrl.text, _passwordCtrl.text);
+    final error = await appState.login(_emailCtrl.text, _passwordCtrl.text);
     if (!mounted) return;
     if (error != null) {
       setState(() {
@@ -58,21 +50,53 @@ class _LoginScreenState extends State<LoginScreen> {
         _errorMessage = error;
       });
     } else {
+      // Second facteur (§5.5.3). Tant qu'il n'est pas franchi, la session
+      // reste au niveau `aal1` : c'est une connexion inachevée.
+      final passed = await _resolveSecondFactor();
+      if (!mounted) return;
+      if (!passed) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'Connexion annulée.';
+        });
+        return;
+      }
+
+      if (!mounted) return;
       Navigator.of(context).pushReplacement(
         PageRouteBuilder(
-          pageBuilder: (_, __, ___) => HomeScreen(
-            appState: _appState,
-            candidatesState: _candidatesState,
-            logisticsState: _logisticsState,
-            themeState: _themeState,
-            notificationsState: _notificationsState,
-            subscriptionState: _subscriptionState,
-          ),
+          pageBuilder: (_, __, ___) => const HomeScreen(),
           transitionsBuilder: (_, animation, __, child) =>
               FadeTransition(opacity: animation, child: child),
           transitionDuration: const Duration(milliseconds: 300),
         ),
       );
+    }
+  }
+
+  /// Présente le défi TOTP si le compte en exige un.
+  ///
+  /// Retourne `false` si l'utilisateur abandonne : la session est alors
+  /// fermée par l'écran de défi, on ne laisse pas traîner de session
+  /// partiellement authentifiée.
+  Future<bool> _resolveSecondFactor() async {
+    try {
+      if (!await MfaService.instance.requiresChallenge()) return true;
+      final factors = await MfaService.instance.verifiedFactors();
+      if (factors.isEmpty) return true;
+      if (!mounted) return true;
+
+      final result = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(
+          builder: (_) => TwoFactorChallengeScreen(factor: factors.first),
+          fullscreenDialog: true,
+        ),
+      );
+      return result ?? false;
+    } catch (_) {
+      // Si le MFA n'est pas activé sur le projet Supabase, l'appel échoue :
+      // on ne bloque pas la connexion pour autant.
+      return true;
     }
   }
 
@@ -356,12 +380,26 @@ class _LoginScreenState extends State<LoginScreen> {
                         ).animate().fade(delay: 300.ms).slideY(begin: 0.1),
 
                         const SizedBox(height: 24),
-                        Wrap(
-                          alignment: WrapAlignment.center,
-                          crossAxisAlignment: WrapCrossAlignment.center,
+                        Center(
+                          child: TextButton(
+                            onPressed: () => Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => const ForgotPasswordScreen(),
+                              ),
+                            ),
+                            child: const Text('Mot de passe oublié ?'),
+                          ),
+                        ).animate().fade(delay: 350.ms),
+
+                        const SizedBox(height: 8),
+                        // Deux parcours distincts : une entreprise crée son
+                        // espace et son administrateur ; un employé rejoint une
+                        // entreprise déjà inscrite, si son adresse figure sur la
+                        // liste tenue par cet administrateur.
+                        Column(
                           children: [
                             Text(
-                              'Pas encore de compte ? ',
+                              'Pas encore de compte ?',
                               style: GoogleFonts.outfit(
                                 color: isDark
                                     ? kDarkTextSecondary
@@ -370,23 +408,21 @@ class _LoginScreenState extends State<LoginScreen> {
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
-                            TextButton(
-                              onPressed: () => Navigator.of(context).push(
-                                PageRouteBuilder(
-                                  pageBuilder: (_, __, ___) => RegisterScreen(
-                                    appState: _appState,
-                                    candidatesState: _candidatesState,
-                                    logisticsState: _logisticsState,
-                                  ),
-                                  transitionsBuilder:
-                                      (_, animation, __, child) =>
-                                          FadeTransition(
-                                            opacity: animation,
-                                            child: child,
-                                          ),
-                                ),
+                            const SizedBox(height: 4),
+                            TextButton.icon(
+                              icon: const Icon(
+                                Icons.business_outlined,
+                                size: 18,
                               ),
-                              child: const Text('Créer un compte'),
+                              onPressed: () =>
+                                  _push(context, const CompanyRegisterScreen()),
+                              label: const Text('Inscrire mon entreprise'),
+                            ),
+                            TextButton.icon(
+                              icon: const Icon(Icons.badge_outlined, size: 18),
+                              onPressed: () =>
+                                  _push(context, const RegisterScreen()),
+                              label: const Text('Rejoindre mon entreprise'),
                             ),
                           ],
                         ).animate().fade(delay: 400.ms),
@@ -398,6 +434,16 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _push(BuildContext context, Widget screen) {
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        pageBuilder: (_, __, ___) => screen,
+        transitionsBuilder: (_, animation, __, child) =>
+            FadeTransition(opacity: animation, child: child),
       ),
     );
   }

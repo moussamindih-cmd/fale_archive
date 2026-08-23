@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -51,6 +53,14 @@ class DocumentPreview extends StatelessWidget {
       final bytes = await SupabaseService.instance.downloadDocument(
         toShow.storagePath!,
       );
+      // Journal des consultations (§5.1.5) : une lecture ne déclenche aucun
+      // trigger, elle doit être déclarée explicitement. L'acteur est déduit
+      // du JWT côté serveur, il n'est donc pas falsifiable.
+      unawaited(SupabaseService.instance.logDocumentAccess(
+        entityType: 'document',
+        entityId: toShow.storagePath!,
+        details: 'Consultation de « ${toShow.name} »',
+      ));
       if (!context.mounted) return;
       Navigator.pop(context); // Ferme l'indicateur de chargement
       if (bytes == null) {

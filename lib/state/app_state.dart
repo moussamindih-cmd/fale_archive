@@ -2,16 +2,24 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../models/allowed_email.dart';
+import '../models/fale_permission.dart';
 import '../models/employee.dart';
+import '../models/archive_category.dart';
 import '../models/daily_archive.dart';
 import '../models/attached_file.dart';
+import '../models/signup_result.dart';
+import '../models/signup_rules.dart';
 import '../models/user_role.dart';
 import '../models/action_history_entry.dart';
 import '../models/subscription.dart';
+import '../services/retention_service.dart';
 import '../services/supabase_service.dart';
 import '../services/error_reporting_service.dart';
 
 class AppState extends ChangeNotifier {
+  static const _uuid = Uuid();
+
   // ─── Auth ────────────────────────────────────────────────────────────────
   Employee? _currentEmployee;
   Employee? get currentEmployee => _currentEmployee;
@@ -64,6 +72,14 @@ class AppState extends ChangeNotifier {
       );
     }
     try {
+      _categories = await _supabase.fetchCategories();
+      _documentTypes = await _supabase.fetchDocumentTypes();
+    } catch (e) {
+      // La taxonomie n'est pas indispensable au démarrage : sans elle, le
+      // dépôt retombe sur la catégorie déduite du poste.
+      debugPrint('Taxonomie documentaire indisponible : $e');
+    }
+    try {
       final logs = await _supabase.fetchActivityLog();
       _activityLog
         ..clear()
@@ -87,6 +103,15 @@ class AppState extends ChangeNotifier {
           context: 'AppState._loadRemoteData(subscriptionInfo)',
         );
       }
+      // Réservée à l'administration : la RLS renvoie une liste vide aux autres
+      // rôles, ce qui laisse simplement l'onglet « Invitations » vide.
+      if (_currentEmployee!.can(FalePermission.manageUsers)) {
+        try {
+          _allowedEmails = await _supabase.fetchAllowedEmails();
+        } catch (e) {
+          debugPrint("Liste d'autorisation indisponible : $e");
+        }
+      }
     }
     notifyListeners();
   }
@@ -96,6 +121,41 @@ class AppState extends ChangeNotifier {
   List<Employee> get employees =>
       List.unmodifiable(_employees.where((e) => e.isActive));
   List<Employee> get allEmployees => List.unmodifiable(_employees);
+
+  // ─── Taxonomie documentaire (§5.1.2 / §5.1.4) ────────────────────────────
+  List<ArchiveCategory> _categories = [];
+  List<RetentionRule> _documentTypes = [];
+
+  /// Catégories de classement de l'organisation.
+  List<ArchiveCategory> get categories => List.unmodifiable(_categories);
+
+  /// Types de documents — chacun porte sa durée légale de conservation.
+  List<RetentionRule> get documentTypes => List.unmodifiable(_documentTypes);
+
+  ArchiveCategory? categoryById(String? id) {
+    if (id == null) return null;
+    for (final c in _categories) {
+      if (c.id == id) return c;
+    }
+    return null;
+  }
+
+  RetentionRule? documentTypeById(String? id) {
+    if (id == null) return null;
+    for (final t in _documentTypes) {
+      if (t.id == id) return t;
+    }
+    return null;
+  }
+
+  /// Évalue une archive au regard de sa règle de conservation (§5.1.4).
+  RetentionAssessment retentionOf(DailyArchive archive) {
+    return RetentionService.evaluate(
+      archivedAt: archive.archiveDate,
+      rule: documentTypeById(archive.documentTypeId),
+      legalHold: archive.legalHold,
+    );
+  }
 
   // ─── Archives store ──────────────────────────────────────────────────────
   List<DailyArchive> _allArchives = [];
@@ -294,72 +354,120 @@ class AppState extends ChangeNotifier {
     return null;
   }
 
-  /// Inscription via Supabase Auth — retourne null si ok, sinon le message d'erreur
-  Future<String?> register({
+  /// Inscription d'une entreprise et de son administrateur.
+  ///
+  /// Aucune session n'est ouverte : le compte administrateur naît non confirmé,
+  /// et c'est la confirmation de son email — sur le domaine de l'entreprise —
+  /// qui vaut preuve de contrôle de ce domaine.
+  Future<SignUpResult> registerCompany({
+    required String companyName,
+    required String companyEmail,
+    required String adminFullName,
+    required String adminEmail,
+    String? adminPersonalEmail,
+    required String password,
+  }) async {
+    final local = _validateCompanyInput(
+      companyName: companyName,
+      companyEmail: companyEmail,
+      adminFullName: adminFullName,
+      adminEmail: adminEmail,
+      password: password,
+    );
+    if (local != null) return local;
+
+    _isLoading = true;
+    notifyListeners();
+    final result = await _supabase.signUpCompany(
+      companyName: companyName,
+      companyEmail: companyEmail,
+      adminFullName: adminFullName,
+      adminEmail: adminEmail,
+      adminPersonalEmail: adminPersonalEmail,
+      password: password,
+    );
+    _isLoading = false;
+    notifyListeners();
+    return result;
+  }
+
+  /// Inscription d'un employé — refusée si l'adresse ne figure pas sur la liste
+  /// tenue par l'administrateur de son entreprise.
+  ///
+  /// Le rôle et le poste ne sont pas transmis : la fonction Edge les lit sur la
+  /// ligne d'autorisation. Le quota d'utilisateurs y est vérifié aussi — il ne
+  /// peut plus vivre ici, l'employé s'inscrivant sans être connecté.
+  Future<SignUpResult> registerEmployee({
     required String fullName,
     required String email,
     String? personalEmail,
     required String password,
-    String jobTitle = '',
-    UserRole role = UserRole.employe,
   }) async {
-    if (fullName.trim().isEmpty) return 'Le nom complet est obligatoire.';
-    if (email.trim().isEmpty || !email.contains('@')) return 'Email invalide.';
-    if (password.length < 6) {
-      return 'Le mot de passe doit avoir au moins 6 caractères.';
+    if (fullName.trim().isEmpty) {
+      return const SignUpResult.failure('Le nom complet est obligatoire.');
     }
-    if (role == UserRole.employe && jobTitle.isEmpty) {
-      return 'Veuillez choisir votre poste.';
+    if (!isValidEmail(email)) {
+      return const SignUpResult.failure('Email professionnel invalide.');
+    }
+    if (password.length < kMinPasswordLength) {
+      return const SignUpResult.failure(
+        'Le mot de passe doit comporter au moins $kMinPasswordLength caractères.',
+      );
     }
 
     _isLoading = true;
     notifyListeners();
-
-    // Vérification des quotas si on est déjà connecté (ajout d'employé par un admin)
-    if (_currentEmployee != null) {
-      if (_subscriptionInfo != null) {
-        final maxUsers = _subscriptionInfo!.activePlan?.maxUsers ?? 1;
-        // On compte les employés actifs existants (ou on suppose tous)
-        if (_employees.length >= maxUsers && maxUsers != 9999) {
-          _isLoading = false;
-          notifyListeners();
-          return 'Quota d\'utilisateurs atteint pour votre abonnement actuel.';
-        }
-      }
-    }
-
-    final error = await _supabase.signUp(
+    final result = await _supabase.signUpEmployee(
       email: email,
+      fullName: fullName,
       personalEmail: personalEmail,
       password: password,
-      fullName: fullName,
-      jobTitle: jobTitle,
-      role: _currentEmployee == null ? UserRole.admin : role,
-      organizationId:
-          _currentEmployee?.organizationId, // Passage de l'org courante
     );
-    if (error != null) {
-      _isLoading = false;
-      notifyListeners();
-      return error;
-    }
-    final emp = await _supabase.fetchCurrentEmployee();
-    if (emp != null) {
-      _currentEmployee = emp;
-      _employees.add(emp);
-      _logActivity(
-        userName: emp.fullName,
-        action: 'REGISTER',
-        details: 'Nouveau compte créé (${emp.role.label}).',
-      );
-    } else {
-      // Si l'utilisateur n'est pas connecté après l'inscription, cela signifie souvent qu'une confirmation d'email est requise.
-      _isLoading = false;
-      notifyListeners();
-      return 'REQUIRE_CONFIRMATION';
-    }
     _isLoading = false;
     notifyListeners();
+    return result;
+  }
+
+  /// Contrôles réalisables sans appel réseau. Le serveur les rejoue tous : ils
+  /// n'évitent qu'un aller-retour, ils ne protègent rien.
+  SignUpResult? _validateCompanyInput({
+    required String companyName,
+    required String companyEmail,
+    required String adminFullName,
+    required String adminEmail,
+    required String password,
+  }) {
+    if (companyName.trim().length < 2) {
+      return const SignUpResult.failure("Le nom de l'entreprise est obligatoire.");
+    }
+    if (!isValidEmail(companyEmail)) {
+      return const SignUpResult.failure("L'email de l'entreprise est invalide.");
+    }
+    if (isFreeEmailDomain(companyEmail)) {
+      return const SignUpResult.failure(
+        "Veuillez utiliser l'adresse professionnelle de votre entreprise, "
+        'pas une messagerie grand public.',
+      );
+    }
+    if (adminFullName.trim().isEmpty) {
+      return const SignUpResult.failure(
+        "Le nom complet de l'administrateur est obligatoire.",
+      );
+    }
+    if (!isValidEmail(adminEmail)) {
+      return const SignUpResult.failure("L'email de l'administrateur est invalide.");
+    }
+    if (domainOf(adminEmail) != domainOf(companyEmail)) {
+      return SignUpResult.failure(
+        "L'email de l'administrateur doit être sur le domaine "
+        '@${domainOf(companyEmail)}.',
+      );
+    }
+    if (password.length < kMinPasswordLength) {
+      return const SignUpResult.failure(
+        'Le mot de passe doit comporter au moins $kMinPasswordLength caractères.',
+      );
+    }
     return null;
   }
 
@@ -393,6 +501,7 @@ class AppState extends ChangeNotifier {
     await SupabaseService.instance.signOut();
     _currentEmployee = null;
     _employees.clear();
+    _allowedEmails = [];
     _allArchives.clear();
     _activityLog.clear();
     notifyListeners();
@@ -406,10 +515,28 @@ class AppState extends ChangeNotifier {
     required String newPassword,
   }) async {
     if (_currentEmployee == null) return 'Aucun utilisateur connecté.';
-    // Note: Avec Supabase, on ne vérifie pas l'ancien mdp localement. Supabase gère l'updateAuth.
-    if (newPassword.length < 6) {
-      return 'Le nouveau mot de passe doit comporter au moins 6 caractères.';
+    if (newPassword.length < 8) {
+      return 'Le nouveau mot de passe doit comporter au moins 8 caractères.';
     }
+    if (newPassword == oldPassword) {
+      return 'Le nouveau mot de passe doit être différent de l\'ancien.';
+    }
+
+    // L'ancien mot de passe n'était pas vérifié : une session laissée
+    // ouverte sur un poste partagé suffisait à changer le mot de passe et à
+    // s'approprier le compte. Supabase n'expose pas de « vérifier ce mot de
+    // passe », mais une reconnexion silencieuse fait exactement cela.
+    try {
+      await Supabase.instance.client.auth.signInWithPassword(
+        email: _currentEmployee!.email,
+        password: oldPassword,
+      );
+    } on AuthException {
+      return 'Mot de passe actuel incorrect.';
+    } catch (e) {
+      return 'Vérification du mot de passe actuel impossible : $e';
+    }
+
     try {
       await Supabase.instance.client.auth.updateUser(
         UserAttributes(password: newPassword),
@@ -434,12 +561,18 @@ class AppState extends ChangeNotifier {
     required int documentCount,
     List<AttachedFile> files = const [],
     String physicalLocation = '',
+    String? categoryId,
+    String? categoryLabel,
+    String? documentTypeId,
+    List<String> keywords = const [],
   }) async {
     if (_currentEmployee == null) return 'Aucun utilisateur connecté.';
-    // Doit être un UUID valide : `daily_archives.id` est de type uuid côté
-    // Postgres. Un ID informel ('arc_<epoch>') fait échouer l'insertion en
-    // silence — c'était le bug d'origine.
-    final archiveId = const Uuid().v4();
+    // Identifiant uuid, et non plus `arc_<millis>`.
+    // Les colonnes `id` sont des uuid en base : la chaîne préfixée était rejetée
+    // (« invalid input syntax for type uuid »). Elle entrait de surcroît en
+    // collision dès deux créations dans la même milliseconde, et se laissait
+    // énumérer.
+    final archiveId = _uuid.v4();
     final uploadedFiles = await Future.wait(
       files.map(
         (f) => SupabaseService.instance.uploadDocument(
@@ -457,7 +590,12 @@ class AppState extends ChangeNotifier {
       archiveDate: DateTime.now(),
       title: title,
       summary: summary,
-      category: _currentEmployee!.archiveCategory,
+      // La catégorie déduite du poste n'est plus qu'un repli : elle sert
+      // de valeur par défaut quand l'utilisateur n'a rien choisi (§5.1.2).
+      category: categoryLabel ?? _currentEmployee!.archiveCategory,
+      categoryId: categoryId,
+      documentTypeId: documentTypeId,
+      keywords: keywords,
       documentCount: files.isNotEmpty ? files.length : documentCount,
       files: uploadedFiles,
       physicalLocation: physicalLocation.trim(),
@@ -470,6 +608,103 @@ class AppState extends ChangeNotifier {
       userName: _currentEmployee!.fullName,
       action: 'ARCHIVE_SUBMIT',
       details: 'Archive journalière soumise : $title.',
+    );
+    notifyListeners();
+    return null;
+  }
+
+  /// Modifier une archive déjà déposée (§5.1.6).
+  ///
+  /// N'existait pas : une archive soumise était définitivement figée, ce qui
+  /// interdisait aussi bien la correction d'une faute de saisie que
+  /// l'historique des modifications demandé par le cahier des charges.
+  ///
+  /// Chaque nouvelle pièce est enregistrée comme une révision : l'ancienne
+  /// n'est jamais écrasée dans le stockage.
+  Future<String?> updateArchive({
+    required String id,
+    String? title,
+    String? summary,
+    String? categoryId,
+    String? categoryLabel,
+    String? documentTypeId,
+    List<String>? keywords,
+    String? physicalLocation,
+    bool? legalHold,
+    List<AttachedFile>? newFiles,
+    String? versionComment,
+  }) async {
+    if (_currentEmployee == null) return 'Aucun utilisateur connecté.';
+
+    final index = _allArchives.indexWhere((a) => a.id == id);
+    if (index == -1) return 'Archive introuvable.';
+    final existing = _allArchives[index];
+
+    if (existing.isPurged) {
+      return 'Cette archive a été détruite au terme de sa durée légale de '
+          'conservation : elle ne peut plus être modifiée.';
+    }
+
+    // Les nouvelles pièces sont envoyées puis versionnées ; les anciennes
+    // restent en place et restent consultables dans l'historique.
+    var files = existing.files;
+    if (newFiles != null && newFiles.isNotEmpty) {
+      final uploaded = await Future.wait(
+        newFiles.map(
+          (f) => SupabaseService.instance.uploadDocument(
+            module: 'archives',
+            entityId: id,
+            file: f,
+          ),
+        ),
+      );
+      for (final file in uploaded) {
+        final versionError = await SupabaseService.instance.addDocumentVersion(
+          archiveId: id,
+          file: file,
+          comment: versionComment,
+        );
+        // Un contenu identique à la révision précédente est refusé par la
+        // base : ce n'est pas une erreur bloquante, la pièce est déjà là.
+        if (versionError != null) {
+          debugPrint('Version non enregistrée pour ${file.name} : $versionError');
+        }
+      }
+      files = [...existing.files, ...uploaded];
+    }
+
+    final error = await SupabaseService.instance.updateArchive(
+      id: id,
+      title: title,
+      summary: summary,
+      category: categoryLabel,
+      categoryId: categoryId,
+      documentTypeId: documentTypeId,
+      keywords: keywords,
+      physicalLocation: physicalLocation,
+      documentCount: files.length,
+      legalHold: legalHold,
+      files: files == existing.files ? null : files,
+    );
+    if (error != null) return error;
+
+    _allArchives[index] = existing.copyWith(
+      title: title,
+      summary: summary,
+      category: categoryLabel,
+      categoryId: categoryId,
+      documentTypeId: documentTypeId,
+      keywords: keywords,
+      physicalLocation: physicalLocation,
+      legalHold: legalHold,
+      files: files,
+      documentCount: files.length,
+    );
+
+    _logActivity(
+      userName: _currentEmployee!.fullName,
+      action: 'UPDATE',
+      details: 'Archive modifiée : ${_allArchives[index].title}.',
     );
     notifyListeners();
     return null;
@@ -610,6 +845,190 @@ class AppState extends ChangeNotifier {
       details: 'Compte de $name supprimé (désactivé).',
     );
     notifyListeners();
+  }
+
+  // ─── Liste d'autorisation des employés ───────────────────────────────────
+
+  List<AllowedEmail> _allowedEmails = [];
+
+  /// Adresses pré-autorisées de l'organisation, les plus récentes d'abord.
+  List<AllowedEmail> get allowedEmails => List.unmodifiable(_allowedEmails);
+
+  /// Adresses enregistrées mais dont le compte n'a pas encore été créé.
+  List<AllowedEmail> get pendingAllowedEmails =>
+      List.unmodifiable(_allowedEmails.where((e) => e.isClaimable));
+
+  /// Charge la liste. Sans droit d'administration, la RLS renvoie zéro ligne :
+  /// on retombe sur une liste vide plutôt que de faire échouer l'écran.
+  Future<void> loadAllowedEmails() async {
+    try {
+      _allowedEmails = await SupabaseService.instance.fetchAllowedEmails();
+    } catch (e) {
+      debugPrint("Liste d'autorisation indisponible : $e");
+      _allowedEmails = [];
+    }
+    notifyListeners();
+  }
+
+  /// Autorise une adresse. Retourne `null` en cas de succès.
+  Future<String?> addAllowedEmail({
+    required String email,
+    String? fullName,
+    required UserRole role,
+    String jobTitle = '',
+    required String actionUserName,
+  }) async {
+    final normalized = normalizeEmail(email);
+    if (!isValidEmail(normalized)) return 'Email invalide.';
+    if (role == UserRole.employe && jobTitle.isEmpty) {
+      return 'Veuillez choisir un poste pour cet employé.';
+    }
+
+    final error = await SupabaseService.instance.addAllowedEmail(
+      email: normalized,
+      fullName: fullName,
+      role: role,
+      jobTitle: jobTitle,
+    );
+    if (error != null) return error;
+
+    await loadAllowedEmails();
+    _logActivity(
+      userName: actionUserName,
+      action: 'INVITE',
+      details: '$normalized autorisé à créer un compte (${role.label}).',
+    );
+    return null;
+  }
+
+  /// Autorise plusieurs adresses d'un coup, toutes avec le même rôle et le même
+  /// poste. Retourne les échecs par adresse — un lot n'est pas rejeté en bloc
+  /// parce qu'une seule ligne est en double.
+  Future<Map<String, String>> addAllowedEmails({
+    required List<String> emails,
+    required UserRole role,
+    String jobTitle = '',
+    required String actionUserName,
+  }) async {
+    final failures = <String, String>{};
+    var added = 0;
+
+    for (final raw in emails) {
+      final normalized = normalizeEmail(raw);
+      if (normalized.isEmpty) continue;
+      if (!isValidEmail(normalized)) {
+        failures[normalized] = 'Email invalide.';
+        continue;
+      }
+      final error = await SupabaseService.instance.addAllowedEmail(
+        email: normalized,
+        role: role,
+        jobTitle: jobTitle,
+      );
+      if (error != null) {
+        failures[normalized] = error;
+      } else {
+        added++;
+      }
+    }
+
+    if (added > 0) {
+      await loadAllowedEmails();
+      _logActivity(
+        userName: actionUserName,
+        action: 'INVITE',
+        details: '$added adresse(s) autorisée(s) (${role.label}).',
+      );
+    }
+    return failures;
+  }
+
+  /// Modifie le rôle, le poste ou le nom d'une entrée. L'adresse elle-même
+  /// n'est pas modifiable : elle est la clé de l'autorisation, la changer
+  /// reviendrait à en créer une autre.
+  Future<String?> updateAllowedEmailEntry({
+    required String id,
+    String? fullName,
+    UserRole? role,
+    String? jobTitle,
+    required String actionUserName,
+  }) async {
+    if (role == UserRole.employe && (jobTitle == null || jobTitle.isEmpty)) {
+      return 'Veuillez choisir un poste pour cet employé.';
+    }
+    try {
+      await SupabaseService.instance.updateAllowedEmail(
+        id: id,
+        fullName: fullName,
+        role: role,
+        jobTitle: jobTitle,
+      );
+    } catch (e) {
+      return 'Modification impossible : $e';
+    }
+    await loadAllowedEmails();
+    final entry = _allowedEmails.where((e) => e.id == id).firstOrNull;
+    _logActivity(
+      userName: actionUserName,
+      action: 'UPDATE',
+      details: "Autorisation mise à jour pour ${entry?.email ?? id}.",
+    );
+    return null;
+  }
+
+  /// Retire l'autorisation : les inscriptions sur cette adresse sont refusées.
+  Future<void> revokeAllowedEmail({
+    required String id,
+    required String actionUserName,
+  }) async {
+    final entry = _allowedEmails.where((e) => e.id == id).firstOrNull;
+    await SupabaseService.instance.revokeAllowedEmail(id);
+    await loadAllowedEmails();
+    _logActivity(
+      userName: actionUserName,
+      action: 'UPDATE',
+      details: "Autorisation retirée pour ${entry?.email ?? id}.",
+    );
+  }
+
+  /// Rouvre une autorisation révoquée.
+  Future<void> restoreAllowedEmail({
+    required String id,
+    required String actionUserName,
+  }) async {
+    final entry = _allowedEmails.where((e) => e.id == id).firstOrNull;
+    await SupabaseService.instance.restoreAllowedEmail(id);
+    await loadAllowedEmails();
+    _logActivity(
+      userName: actionUserName,
+      action: 'UPDATE',
+      details: "Autorisation rétablie pour ${entry?.email ?? id}.",
+    );
+  }
+
+  /// Efface une entrée jamais utilisée. Une entrée déjà consommée se révoque —
+  /// la politique `allowed_emails_delete` refuse de l'effacer.
+  Future<String?> deleteAllowedEmail({
+    required String id,
+    required String actionUserName,
+  }) async {
+    final entry = _allowedEmails.where((e) => e.id == id).firstOrNull;
+    if (entry != null && !entry.isDeletable) {
+      return "Cette adresse a déjà servi à créer un compte : désactivez le "
+          "compte depuis l'onglet Membres.";
+    }
+    try {
+      await SupabaseService.instance.deleteAllowedEmail(id);
+    } catch (e) {
+      return 'Suppression impossible : $e';
+    }
+    await loadAllowedEmails();
+    _logActivity(
+      userName: actionUserName,
+      action: 'DELETE',
+      details: "Autorisation supprimée pour ${entry?.email ?? id}.",
+    );
+    return null;
   }
 
   // ─── Activité log ─────────────────────────────────────────────────────────

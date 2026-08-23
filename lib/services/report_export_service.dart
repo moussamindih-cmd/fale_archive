@@ -283,6 +283,39 @@ class ReportExportService {
   }
 
   /// Génération CSV pour les archives
+  /// Export CSV du vivier de candidats (§5.4.3).
+  ///
+  /// Absent jusqu'ici : l'écran de rapports désactivait purement le bouton
+  /// pour ce type de rapport.
+  static String generateCandidatesCsv(List<Candidate> candidates) {
+    final buffer = StringBuffer()
+      ..writeln('Nom;Poste visé;Email;Téléphone;Date de candidature;Statut;'
+          'Pièces jointes');
+    final dateFormat = DateFormat('dd/MM/yyyy');
+
+    for (final c in candidates) {
+      buffer.writeln([
+        _csvField(c.fullName),
+        _csvField(c.targetPosition),
+        _csvField(c.email),
+        _csvField(c.phone),
+        dateFormat.format(c.applicationDate),
+        _csvField(c.status.label),
+        c.documents.length.toString(),
+      ].join(';'));
+    }
+    return buffer.toString();
+  }
+
+  /// Échappement CSV : guillemets doublés, champ encadré dès qu'il contient
+  /// un séparateur ou un saut de ligne.
+  static String _csvField(String value) {
+    if (value.isEmpty) return '';
+    final needsQuoting = value.contains(RegExp(r'[;"\n\r]'));
+    final escaped = value.replaceAll('"', '""');
+    return needsQuoting ? '"$escaped"' : escaped;
+  }
+
   static String generateArchivesCsv(List<DailyArchive> archives) {
     final buffer = StringBuffer();
     buffer.writeln('ID;Date_Creation;Employe;Poste;Titre;Resume;Nb_Documents');

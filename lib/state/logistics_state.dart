@@ -7,6 +7,8 @@ import '../services/supabase_service.dart';
 import '../services/error_reporting_service.dart';
 
 class LogisticsState extends ChangeNotifier {
+  static const _uuid = Uuid();
+
   // ─── Store ──────────────────────────────────────────────────────────────
   final List<LogisticsItem> _items = [];
   final SupabaseService _supabase;
@@ -158,10 +160,12 @@ class LogisticsState extends ChangeNotifier {
       details: 'Document logistique enregistré.',
     );
     final item = LogisticsItem(
-      // Doit être un UUID valide : `logistics_items.id` est de type uuid
-      // côté Postgres. Un ID informel ('log_<epoch>') fait échouer
-      // l'insertion en silence — c'était le bug d'origine.
-      id: const Uuid().v4(),
+      // Identifiant uuid, et non plus `log_<millis>`.
+      // Les colonnes `id` sont des uuid en base : la chaîne préfixée était rejetée
+      // (« invalid input syntax for type uuid »). Elle entrait de surcroît en
+      // collision dès deux créations dans la même milliseconde, et se laissait
+      // énumérer.
+      id: _uuid.v4(),
       documentType: documentType,
       reference: reference.trim(),
       amount: amount,

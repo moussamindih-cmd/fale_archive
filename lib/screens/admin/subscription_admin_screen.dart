@@ -88,8 +88,9 @@ class _SubscriptionAdminScreenState extends State<SubscriptionAdminScreen> {
       itemBuilder: (context, index) {
         final sub = _subscriptions[index];
         final orgName =
-            sub['organizations']?['name'] ?? 'Organisation inconnue';
-        final planName = sub['subscription_plans']?['name'] ?? 'Plan inconnu';
+            sub['organizations']?['name'] as String? ?? 'Organisation inconnue';
+        final planName =
+            sub['subscription_plans']?['name'] as String? ?? 'Plan inconnu';
         final statusStr = sub['payment_status'] as String?;
         final status = SubscriptionStatus.fromString(statusStr);
         final amount = sub['amount'] as num?;

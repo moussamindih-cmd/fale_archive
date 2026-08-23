@@ -7,6 +7,8 @@ import '../services/supabase_service.dart';
 import '../services/error_reporting_service.dart';
 
 class CandidatesState extends ChangeNotifier {
+  static const _uuid = Uuid();
+
   // ─── Store ──────────────────────────────────────────────────────────────
   final List<Candidate> _candidates = [];
   final SupabaseService _supabase;
@@ -153,11 +155,12 @@ class CandidatesState extends ChangeNotifier {
     required String actionUserName,
   }) async {
     final candidate = Candidate(
-      // Doit être un UUID valide : `candidates.id` est de type uuid côté
-      // Postgres (idem logistics_items/daily_archives). Un ID informel
-      // ('cand_<epoch>') fait échouer l'insertion en silence — c'était le
-      // bug d'origine, invisible avant l'ajout du monitoring.
-      id: const Uuid().v4(),
+      // Identifiant uuid, et non plus `cand_<millis>`.
+      // Les colonnes `id` sont des uuid en base : la chaîne préfixée était rejetée
+      // (« invalid input syntax for type uuid »). Elle entrait de surcroît en
+      // collision dès deux créations dans la même milliseconde, et se laissait
+      // énumérer.
+      id: _uuid.v4(),
       fullName: fullName.trim(),
       targetPosition: targetPosition,
       email: email.trim(),
