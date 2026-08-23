@@ -83,54 +83,59 @@ class _CandidateDetailScreenState extends State<CandidateDetailScreen> {
                 : null,
           ),
           body: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // ── Carte identité ─────────────────────────────────────
-                _buildIdentityCard(candidate, color),
-                const SizedBox(height: 16),
+            padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 760),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // ── Carte identité ─────────────────────────────────
+                    _buildIdentityCard(candidate, color),
+                    const SizedBox(height: 16),
 
-                // ── Changement de statut (RH/Admin) ───────────────────
-                if (canEdit) ...[
-                  _buildStatusChanger(context, candidate, color),
-                  const SizedBox(height: 16),
-                ],
+                    // ── Changement de statut (RH/Admin) ───────────────
+                    if (canEdit) ...[
+                      _buildStatusChanger(context, candidate, color),
+                      const SizedBox(height: 16),
+                    ],
 
-                // ── Notes RH ──────────────────────────────────────────
-                _buildNotesSection(context, candidate),
-                const SizedBox(height: 16),
+                    // ── Notes RH ────────────────────────────────────────
+                    _buildNotesSection(context, candidate),
+                    const SizedBox(height: 16),
 
-                // ── Documents attachés ─────────────────────────────────
-                if (candidate.documents.any((f) => !f.isRemoved)) ...[
-                  _buildSection(
-                    title: 'Documents attachés',
-                    icon: Icons.attach_file_rounded,
-                    child: Column(
-                      children: candidate.documents
-                          .where((f) => !f.isRemoved)
-                          .map((f) => DocumentPreview(file: f))
-                          .toList(),
+                    // ── Documents attachés ───────────────────────────────
+                    if (candidate.documents.any((f) => !f.isRemoved)) ...[
+                      _buildSection(
+                        title: 'Documents attachés',
+                        icon: Icons.attach_file_rounded,
+                        child: Column(
+                          children: candidate.documents
+                              .where((f) => !f.isRemoved)
+                              .map((f) => DocumentPreview(file: f))
+                              .toList(),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+
+                    // ── Historique & commentaires ─────────────────────────
+                    _buildSection(
+                      title: 'Activité & commentaires',
+                      icon: Icons.forum_outlined,
+                      child: CommentsTimeline(
+                        entries: candidatesState.historyFor(candidate.id),
+                        accentColor: const Color(0xFF2563EB),
+                        onSendComment: (text) => candidatesState.addComment(
+                          candidateId: candidate.id,
+                          text: text,
+                          authorName: currentUserName,
+                        ),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                ],
-
-                // ── Historique & commentaires ───────────────────────────
-                _buildSection(
-                  title: 'Activité & commentaires',
-                  icon: Icons.forum_outlined,
-                  child: CommentsTimeline(
-                    entries: candidatesState.historyFor(candidate.id),
-                    accentColor: const Color(0xFF2563EB),
-                    onSendComment: (text) => candidatesState.addComment(
-                      candidateId: candidate.id,
-                      text: text,
-                      authorName: currentUserName,
-                    ),
-                  ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         );
@@ -139,9 +144,10 @@ class _CandidateDetailScreenState extends State<CandidateDetailScreen> {
   }
 
   Widget _buildIdentityCard(Candidate c, Color color) {
-    return Card(
+    return Container(
+      decoration: _cardDecoration(),
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(24),
         child: Column(
           children: [
             Row(
@@ -226,11 +232,21 @@ class _CandidateDetailScreenState extends State<CandidateDetailScreen> {
 
   Widget _infoRow(IconData icon, String label, String value) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: 12),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Icon(icon, size: 16, color: const Color(0xFF64748B)),
-          const SizedBox(width: 8),
+          Container(
+            width: 28,
+            height: 28,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, size: 15, color: const Color(0xFF64748B)),
+          ),
+          const SizedBox(width: 10),
           Text(
             '$label : ',
             style: GoogleFonts.outfit(
@@ -254,9 +270,10 @@ class _CandidateDetailScreenState extends State<CandidateDetailScreen> {
   }
 
   Widget _buildStatusChanger(BuildContext context, Candidate c, Color color) {
-    return Card(
+    return Container(
+      decoration: _cardDecoration(),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -346,15 +363,16 @@ class _CandidateDetailScreenState extends State<CandidateDetailScreen> {
     required IconData icon,
     required Widget child,
   }) {
-    return Card(
+    return Container(
+      decoration: _cardDecoration(),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Icon(icon, size: 18, color: const Color(0xFF64748B)),
+                Icon(icon, size: 18, color: const Color(0xFF2563EB)),
                 const SizedBox(width: 8),
                 Text(
                   title,
@@ -366,13 +384,28 @@ class _CandidateDetailScreenState extends State<CandidateDetailScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
             const Divider(height: 1),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
             child,
           ],
         ),
       ),
+    );
+  }
+
+  BoxDecoration _cardDecoration() {
+    return BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(20),
+      border: Border.all(color: const Color(0xFFE2E8F0)),
+      boxShadow: [
+        BoxShadow(
+          color: const Color(0xFF0F172A).withValues(alpha: 0.05),
+          blurRadius: 24,
+          offset: const Offset(0, 10),
+        ),
+      ],
     );
   }
 

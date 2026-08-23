@@ -90,167 +90,173 @@ class _LogisticsDetailScreenState extends State<LogisticsDetailScreen> {
                 : null,
           ),
           body: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // ── Carte principale ──────────────────────────────────
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
+            padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 760),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // ── Carte principale ──────────────────────────────────
+                    Container(
+                      decoration: _cardDecoration(),
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 5,
-                              ),
-                              decoration: BoxDecoration(
-                                color: typeColor.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                item.documentType.label,
-                                style: GoogleFonts.outfit(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  color: typeColor,
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 5,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: typeColor.withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    item.documentType.label,
+                                    style: GoogleFonts.outfit(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: typeColor,
+                                    ),
+                                  ),
                                 ),
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 5,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: statusColor.withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    item.status.label,
+                                    style: GoogleFonts.outfit(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: statusColor,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              item.reference,
+                              style: GoogleFonts.outfit(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w800,
+                                color: const Color(0xFF0F172A),
                               ),
                             ),
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 5,
+                            const SizedBox(height: 16),
+                            const Divider(height: 1),
+                            const SizedBox(height: 16),
+                            _infoRow(
+                              Icons.business_outlined,
+                              'Fournisseur',
+                              item.supplier,
+                            ),
+                            if (item.amount != null)
+                              _infoRow(
+                                Icons.payments_outlined,
+                                'Montant',
+                                item.formattedAmount,
                               ),
-                              decoration: BoxDecoration(
-                                color: statusColor.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(8),
+                            _infoRow(
+                              Icons.calendar_today_outlined,
+                              'Date d\'émission',
+                              DateFormat(
+                                'dd MMMM yyyy',
+                                'fr_FR',
+                              ).format(item.issueDate),
+                            ),
+                            _infoRow(
+                              Icons.person_outlined,
+                              'Enregistré par',
+                              item.registeredByName,
+                            ),
+                            if (item.validatedByName.isNotEmpty)
+                              _infoRow(
+                                item.status == LogisticsStatus.valide
+                                    ? Icons.check_circle_outlined
+                                    : Icons.cancel_outlined,
+                                item.status == LogisticsStatus.valide
+                                    ? 'Validé par'
+                                    : 'Rejeté par',
+                                item.validatedByName,
                               ),
-                              child: Text(
-                                item.status.label,
+                            if (item.notes.isNotEmpty) ...[
+                              const SizedBox(height: 8),
+                              Text(
+                                'Notes :',
                                 style: GoogleFonts.outfit(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  color: statusColor,
+                                  fontSize: 13,
+                                  color: const Color(0xFF64748B),
                                 ),
                               ),
-                            ),
+                              const SizedBox(height: 4),
+                              Text(
+                                item.notes,
+                                style: GoogleFonts.outfit(
+                                  fontSize: 13,
+                                  color: const Color(0xFF374151),
+                                  height: 1.5,
+                                ),
+                              ),
+                            ],
                           ],
                         ),
-                        const SizedBox(height: 16),
-                        Text(
-                          item.reference,
-                          style: GoogleFonts.outfit(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w800,
-                            color: const Color(0xFF0F172A),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        const Divider(height: 1),
-                        const SizedBox(height: 16),
-                        _infoRow(
-                          Icons.business_outlined,
-                          'Fournisseur',
-                          item.supplier,
-                        ),
-                        if (item.amount != null)
-                          _infoRow(
-                            Icons.payments_outlined,
-                            'Montant',
-                            item.formattedAmount,
-                          ),
-                        _infoRow(
-                          Icons.calendar_today_outlined,
-                          'Date d\'émission',
-                          DateFormat(
-                            'dd MMMM yyyy',
-                            'fr_FR',
-                          ).format(item.issueDate),
-                        ),
-                        _infoRow(
-                          Icons.person_outlined,
-                          'Enregistré par',
-                          item.registeredByName,
-                        ),
-                        if (item.validatedByName.isNotEmpty)
-                          _infoRow(
-                            item.status == LogisticsStatus.valide
-                                ? Icons.check_circle_outlined
-                                : Icons.cancel_outlined,
-                            item.status == LogisticsStatus.valide
-                                ? 'Validé par'
-                                : 'Rejeté par',
-                            item.validatedByName,
-                          ),
-                        if (item.notes.isNotEmpty) ...[
-                          const SizedBox(height: 8),
-                          Text(
-                            'Notes :',
-                            style: GoogleFonts.outfit(
-                              fontSize: 13,
-                              color: const Color(0xFF64748B),
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            item.notes,
-                            style: GoogleFonts.outfit(
-                              fontSize: 13,
-                              color: const Color(0xFF374151),
-                              height: 1.5,
-                            ),
-                          ),
-                        ],
-                      ],
+                      ),
                     ),
-                  ),
+                    const SizedBox(height: 16),
+
+                    // ── Boutons Valider / Rejeter (Directeur Administratif / Admin) ──
+                    if (_canValidate &&
+                        item.status == LogisticsStatus.enAttente) ...[
+                      _buildValidationCard(context, item),
+                      const SizedBox(height: 16),
+                    ],
+
+                    // ── Documents attachés ─────────────────────────────────
+                    if (item.files.any((f) => !f.isRemoved)) ...[
+                      _buildSection(
+                        title:
+                            'Fichiers attachés (${item.files.where((f) => !f.isRemoved).length})',
+                        icon: Icons.attach_file_rounded,
+                        child: Column(
+                          children: item.files
+                              .where((f) => !f.isRemoved)
+                              .map((f) => DocumentPreview(file: f))
+                              .toList(),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+
+                    // ── Historique & commentaires ───────────────────────────
+                    _buildSection(
+                      title: 'Activité & commentaires',
+                      icon: Icons.forum_outlined,
+                      child: CommentsTimeline(
+                        entries: logisticsState.historyFor(item.id),
+                        accentColor: const Color(0xFF7C3AED),
+                        onSendComment: (text) => logisticsState.addComment(
+                          itemId: item.id,
+                          text: text,
+                          authorName: currentUserName,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 16),
-
-                // ── Boutons Valider / Rejeter (Directeur Administratif / Admin) ──
-                if (_canValidate &&
-                    item.status == LogisticsStatus.enAttente) ...[
-                  _buildValidationCard(context, item),
-                  const SizedBox(height: 16),
-                ],
-
-                // ── Documents attachés ─────────────────────────────────
-                if (item.files.any((f) => !f.isRemoved)) ...[
-                  _buildSection(
-                    title:
-                        'Fichiers attachés (${item.files.where((f) => !f.isRemoved).length})',
-                    icon: Icons.attach_file_rounded,
-                    child: Column(
-                      children: item.files
-                          .where((f) => !f.isRemoved)
-                          .map((f) => DocumentPreview(file: f))
-                          .toList(),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                ],
-
-                // ── Historique & commentaires ───────────────────────────
-                _buildSection(
-                  title: 'Activité & commentaires',
-                  icon: Icons.forum_outlined,
-                  child: CommentsTimeline(
-                    entries: logisticsState.historyFor(item.id),
-                    accentColor: const Color(0xFF7C3AED),
-                    onSendComment: (text) => logisticsState.addComment(
-                      itemId: item.id,
-                      text: text,
-                      authorName: currentUserName,
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         );
@@ -260,11 +266,21 @@ class _LogisticsDetailScreenState extends State<LogisticsDetailScreen> {
 
   Widget _infoRow(IconData icon, String label, String value) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: 12),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Icon(icon, size: 16, color: const Color(0xFF64748B)),
-          const SizedBox(width: 8),
+          Container(
+            width: 28,
+            height: 28,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, size: 15, color: const Color(0xFF64748B)),
+          ),
+          const SizedBox(width: 10),
           Text(
             '$label : ',
             style: GoogleFonts.outfit(
@@ -288,9 +304,10 @@ class _LogisticsDetailScreenState extends State<LogisticsDetailScreen> {
   }
 
   Widget _buildValidationCard(BuildContext context, LogisticsItem item) {
-    return Card(
+    return Container(
+      decoration: _cardDecoration(),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -401,15 +418,16 @@ class _LogisticsDetailScreenState extends State<LogisticsDetailScreen> {
     required IconData icon,
     required Widget child,
   }) {
-    return Card(
+    return Container(
+      decoration: _cardDecoration(),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Icon(icon, size: 18, color: const Color(0xFF64748B)),
+                Icon(icon, size: 18, color: const Color(0xFF7C3AED)),
                 const SizedBox(width: 8),
                 Text(
                   title,
@@ -421,13 +439,28 @@ class _LogisticsDetailScreenState extends State<LogisticsDetailScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
             const Divider(height: 1),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
             child,
           ],
         ),
       ),
+    );
+  }
+
+  BoxDecoration _cardDecoration() {
+    return BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(20),
+      border: Border.all(color: const Color(0xFFE2E8F0)),
+      boxShadow: [
+        BoxShadow(
+          color: const Color(0xFF0F172A).withValues(alpha: 0.05),
+          blurRadius: 24,
+          offset: const Offset(0, 10),
+        ),
+      ],
     );
   }
 
