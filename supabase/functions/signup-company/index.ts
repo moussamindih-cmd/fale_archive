@@ -78,7 +78,19 @@ Deno.serve(async (req: Request) => {
     }, 400);
   }
 
-  const service = getServiceClient();
+  let service;
+  try {
+    service = getServiceClient();
+  } catch (e) {
+    // Défaut de configuration du projet, pas de la requête. Le remonter tel
+    // quel : déguisé en « création impossible », il envoyait chercher la panne
+    // du mauvais côté. Le message ne nomme que des variables d'environnement,
+    // jamais leur valeur.
+    return jsonResponse({
+      code: 'SERVICE_KEY_MISSING',
+      error: e instanceof Error ? e.message : String(e),
+    }, 500);
+  }
 
   // ─── Unicité ───────────────────────────────────────────────────────────
   const { data: existingOrg } = await service

@@ -4,10 +4,42 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
+/// Clé secrète du projet, sous l'un ou l'autre nom.
+///
+/// Les projets créés sous le nouveau système de clés (`sb_publishable_…` /
+/// `sb_secret_…`) reçoivent `SUPABASE_SECRET_KEY` ; les projets historiques,
+/// `SUPABASE_SERVICE_ROLE_KEY`. Un projet qui a désactivé ses clés JWT
+/// historiques n'expose plus la seconde — et `createClient` recevait alors
+/// `undefined`, ce qui ne se voyait qu'à la première écriture refusée.
+function serviceKey(): string {
+  const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ??
+              Deno.env.get('SUPABASE_SECRET_KEY');
+  if (!key) {
+    throw new Error(
+      'Aucune clé secrète disponible : ni SUPABASE_SERVICE_ROLE_KEY ni ' +
+      'SUPABASE_SECRET_KEY ne sont définies dans l\'environnement de la fonction.',
+    );
+  }
+  return key;
+}
+
+/// Clé publique du projet, sous l'un ou l'autre nom (même raison).
+function publicKey(): string {
+  const key = Deno.env.get('SUPABASE_ANON_KEY') ??
+              Deno.env.get('SUPABASE_PUBLISHABLE_KEY');
+  if (!key) {
+    throw new Error(
+      'Aucune clé publique disponible : ni SUPABASE_ANON_KEY ni ' +
+      'SUPABASE_PUBLISHABLE_KEY ne sont définies.',
+    );
+  }
+  return key;
+}
+
 export function getServiceClient() {
   return createClient(
     Deno.env.get('SUPABASE_URL')!,
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, // Bypass RLS
+    serviceKey(), // Bypass RLS
     { auth: { persistSession: false } }
   );
 }
@@ -15,7 +47,7 @@ export function getServiceClient() {
 export function getAnonClient() {
   return createClient(
     Deno.env.get('SUPABASE_URL')!,
-    Deno.env.get('SUPABASE_ANON_KEY')!,
+    publicKey(),
   );
 }
 
